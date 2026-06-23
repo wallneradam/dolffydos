@@ -1,0 +1,77 @@
+# Local agent state
+MEMORY.md
+.agents/
+.codex/
+.claude/
+
+# macOS and filesystem noise
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100/
+.Trashes/
+
+# Editor and IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment and local config
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Python caches and virtualenvs
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Build and assembler byproducts
+*.o
+*.obj
+*.lst
+*.list
+*.map
+*.sym
+*.lbl
+*.dbg
+
+# Logs, temporary files, and patches
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.prof
+*.profraw
+*.profdata
+
+# C64 emulator and transfer artifacts
+*.vsf
+*.vfl
+*.s64
+*.reu
+*.d71
+*.d81
+*.g64
+*.nib
+*.tap
+*.crt
+
+# Project build output
+kernal/rom/*.rom
+
+# Local experiments
+scratchpad/
+tmp/
+out/
