@@ -19,4 +19,7 @@ JS_S2 = $0335    ; scratch: slot2 value precomputed before the burst (avoids lsr
 JS_P2 = 2        ; slot1->slot2 pad (slot2 from scratch -> ~+23)
 JS_P3 = 2        ; slot2->slot3 pad (~+35)
 JS_P4 = 2        ; slot3->slot4 pad (~+47)
-JS_PP = 3        ; slot4->re-park pad
+JS_PE = 5        ; EOI marker hold ($07 both-released) before re-park; LAST byte only
+                 ; (measured: real JD inserts $07 at ~+60 on the last byte of a
+                 ; transmission so the drive finalizes the filename/file; non-EOI
+                 ; bytes go slot4 -> re-park directly)

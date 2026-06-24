@@ -2591,7 +2591,12 @@ JS_RG:
     !fill JS_P4, $ea
     lda JS_T4,y
     sta $dd00            ; slot4 (~+48): CLK=bit2, DATA=bit0
-    !fill JS_PP, $ea
+    bit $a3              ; EOI flag (bit7): last byte of this transmission?
+    bpl JS_RP            ; not EOI -> straight to re-park
+    lda #$07
+    sta $dd00            ; EOI marker (~+60): release both lines so the drive
+    !fill JS_PE, $ea     ; finalizes the filename/file (else it waits for more bytes)
+JS_RP:
     lda #$17
     sta $dd00            ; re-park: CLK-out asserted (drive re-arms for next byte)
     rts
@@ -3253,15 +3258,8 @@ JD_LOOPCHK:
     and #$60
     cmp #$40             ; TALK ($40, bit6 set/bit5 clear) -> fast LOAD detect
     beq JD_DOPROBE
-    cmp #$20             ; LISTEN ($20, bit5 set/bit6 clear)
+    cmp #$20             ; LISTEN ($20, bit5 set/bit6 clear) -> fast SAVE detect (M2)
     bne JD_CONT          ; secondary/other -> no probe
-    ; LISTEN: M2 fast-SAVE detect is NOT armed here yet (the OPEN/turnaround fast-send
-    ; is unsolved - arming it breaks both SAVE and the LOAD filename phase). Clear the
-    ; jiffy flag so a stale LOAD arm cannot leak into a following SAVE's byte-send hook.
-    lda $9e
-    and #$7f
-    sta $9e
-    jmp JD_CONT
 JD_DOPROBE:
     lda $9e
     and #$7f             ; fresh-evaluate the jiffy flag for THIS talk
