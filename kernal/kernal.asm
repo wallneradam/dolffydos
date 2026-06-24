@@ -3,6 +3,7 @@
 ; =============================================
 ; Project "Dolffy DOS" (Dolphin + Jiffy): DolphinDOS parallel disk speed +
 ; JiffyDOS serial (per-device) + Ultimate add-ons. This file is the editable
+; (JiffyDOS fast-receive calibration constants live in jd_cal.inc, sourced below.)
 ; base; it currently still assembles to the faithful upstream DolphinDOS 2 ROM
 ; (the Dolffy bake — feature removal, JiffyDOS, rebrand — is applied on top).
 ; =============================================
@@ -29,6 +30,12 @@
 
 !cpu 6502
 * = $e000
+
+; JD_ENABLE: 0 = pristine working ROM (DolphinDOS base, byte-identical);
+; 1 = JiffyDOS path active (TALK-gated detection + fast serial). Defined here
+; because it gates code before its original site (see ~$ed5f / $ed8e splices).
+JD_ENABLE = 1
+!if JD_ENABLE { !source "jd_cal.inc" }   ; JiffyDOS fast-LOAD receiver calibration (JT_*)
 
     sta $56                                  ; $e000
 
@@ -1751,7 +1758,11 @@
     bcs $ed55                                ; $ed58
     jsr $eea9      ; Wait for data ready signal ; $63de
     bcc $ed5a                                ; $ed5d
-    jsr $ee8e      ; Prepare for bit reception ; $63e3
+!if JD_ENABLE {
+    jsr JD_CAP     ; capture cmd byte ($95->$9b) for TALK gate, then assert CLK ; $ed5f
+} else {
+    jsr $ee8e      ; Prepare for bit reception ; $ed5f
+}
     lda #$08       ; 8 bits to receive       ; $63e6
     sta $a5        ; Store bit counter       ; $63e8
 ; --- Receive loop: get 8 bits from $DD00 bit 7 ---
@@ -1779,8 +1790,7 @@
 ; detect (a JiffyDOS drive answers on LISTEN/TALK, a stock drive does not), but
 ; detection is NOT separable from the fast transfer: a drive that answers expects
 ; the JiffyDOS byte continuation, so with =1 a real JiffyDOS LOAD fails (FILE NOT
-; FOUND) until M1 implements the fast byte protocol. Keep 0 until M1 lands.
-JD_ENABLE = 0
+; FOUND) until M1 implements the fast byte protocol. (JD_ENABLE is defined at $e000.)
 !if JD_ENABLE {
     jmp JD_LOOPCHK ; last-bit -> JiffyDOS detect hook ; $ed8e
     nop            ; pad: keep $ed92 byte-exact (jmp 3 + nop 1 = 4)  ; $ed91
@@ -1852,7 +1862,11 @@ JD_ENABLE = 0
     sei                                      ; $ee13
     lda #$00                                 ; $ee14
     sta $a5                                  ; $ee16
+!if JD_ENABLE {
+    jmp JDISP                                ; $ee18 ACPTR fork -> jiffy dispatch
+} else {
     jmp $f841                                ; $ee18
+}
     jsr $eea9                                ; $ee1b
     bpl $ee1b                                ; $ee1e
     lda #$01                                 ; $ee20
@@ -1950,7 +1964,11 @@ JD_ENABLE = 0
     lda ($bb),y                              ; $eec4
     cmp #$24                                 ; $eec6
     bne $eecd                                ; $eec8
+!if JD_ENABLE {
+    jmp JT_GATE                              ; $eeca LOAD-body entry -> JiffyDOS gate (jiffy fast / stock)
+} else {
     jmp $f4f3                                ; $eeca
+}
     ldx $dc0c                                ; $eecd
     bpl $eeca                                ; $eed0
     ldy #$51                                 ; $eed2
@@ -2091,7 +2109,48 @@ JD_ENABLE = 0
     txa                                      ; $f002
     pha                                      ; $f003
     tya                                      ; $f004
+!if JD_ENABLE {
+; =============================================================================
+; JT_GATE / JTIGHT body loop - JiffyDOS fast LOAD data-body receiver ($f005).
+; Entered from $EECA (LOAD body entry) instead of jmp $f4f3. For a jiffy LOAD it
+; runs the whole data body through the shared tight core JT_RX (one clean sync
+; point per byte), storing inline and re-arming immediately so the drive never
+; free-runs a resume byte. Non-jiffy or VERIFY fall back to the stock body.
+; Contract from JT_RX: A = byte, JT_TERM ($0334) = terminal P (V=CLK-in b6,
+; N=DATA-in b7). EOI = CLK-in high & DATA-in low.
+; =============================================================================
+JT_GATE:
+    lda $9e
+    bpl JT_GSTK          ; bit7 clear -> not jiffy -> stock serial/parallel body
+    lda $93
+    bne JT_GSTK          ; VERIFY -> stock body (compare path)
+    sei
+    ldy #$00             ; Y=0 store index (kept 0 throughout)
+    lda #$3f
+    sta $dd02            ; DDRA: ATN/CLK/DATA-out outputs
+    lda #$e7
+    sta $dd00            ; assert DATA out -> drive parks at its FFB8 release-wait
+JT_BL:
+    jsr JT_RX            ; receive one byte (cycle-critical core)
+    sta ($ae),y          ; store byte to load pointer
+    inc $ae
+    bne JT_NC
+    inc $af
+JT_NC:
+    bit JT_TERM          ; V=CLK-in, N=DATA-in (sampled right after read3)
+    bvc JT_BL            ; CLK-in low = more data -> next byte
+    bmi JT_BL            ; DATA-in high = more data -> next byte
+    lda $90
+    ora #$40             ; CLK-in high & DATA-in low = EOI -> STATUS bit6
+    sta $90
+    cli
+    jmp $f528            ; stock LOAD done path (UNTLK / wrap-up)
+JT_GSTK:
+    jmp $f4f3            ; original stock LOAD body (ST-clear + serial/parallel)
+    !fill $f08e - *, $ea
+} else {
     !fill $89, $ea   ; $f005-$f08d BLANK ML-monitor prologue + command loop
+}
     jsr $2e3b                                ; $f08e
     !byte $0d,$43,$5a                        ; $6715 (data: CR "CZ")
     eor #$44                                 ; $f094
@@ -3129,6 +3188,13 @@ JD_LOOPCHK:
     lda $dd00
     and #$08             ; ATN OUT (bit3) asserted? -> command byte
     beq JD_CONT          ; released -> CIOUT data byte, do not probe
+    lda $9b              ; captured command byte (from JD_CAP at $ed5f)
+    and #$60
+    cmp #$40             ; TALK only? (bit6 set, bit5 clear); LISTEN/2nd stay stock
+    bne JD_CONT          ; not a TALK -> no probe, keeps filename phase stock
+    lda $9e
+    and #$7f             ; fresh-evaluate the jiffy flag for THIS talk
+    sta $9e
     ldx #JD_WINDOW
 JD_PW:
     lda $dd00
@@ -3152,7 +3218,11 @@ JD_CONT:
     jmp $ed66            ; back to loop top (clock next/last bit)
 JD_TOACK:
     jmp $ed92            ; into the post-byte device-ACK handshake
-    !fill $51, $ea   ; (137 - 56 code = 81 bytes) remaining blank
+JD_CAP:
+    lda $95              ; command/data byte currently being clocked out
+    sta $9b              ; stash it for the TALK gate above
+    jmp $ee8e            ; perform the original CLK-assert, rts to $ed62
+    !fill $3c, $ea   ; (137 - 77 code = 60 bytes) remaining blank
 } else {
     !fill $89, $ea   ; $f9e2-$fa6a pristine blank (137 bytes)
 }
@@ -3207,7 +3277,106 @@ JD_TOACK:
     lda #$20                                 ; $fb9e
     bit $0da9                                ; $fba0
     jmp $ffd2                                ; $fba3
+!if JD_ENABLE {
+; =============================================================================
+; JiffyDOS fast RECEIVE - shared tight core (JT_RX) + ACPTR single-byte wrapper.
+;
+; JT_RX receives ONE byte with the cycle-critical edge->4 reads->terminal->ack
+; sequence kept contiguous (no jsr/branch inside the read window). Read offsets
+; target the real-drive cadence (~+4/+14/+25/+36 after the DATA-release edge); the
+; terminal bus state is sampled right after read3 and the DATA ack is re-asserted
+; immediately, so the drive re-parks before it can free-run the next byte. Decode
+; is inline, clean-room: seed A=K=$07 (CIA2 bank/RS232 low bits), eor in each read,
+; eor #$07 cancels K between lsr/lsr shifts - no decode table, no RAM scratch.
+; Returns: A = byte; JT_TERM = terminal P (V=CLK-in b6, N=DATA-in b7). Callers:
+; JT_BL (LOAD body, $f005) and JR_ONE (ACPTR single byte, e.g. the load address);
+; the caller must have DDRA set and DATA asserted before jsr JT_RX.
+; =============================================================================
+JDISP:                          ; ACPTR fork ($ee18 jmp JDISP)
+    lda $9e
+    bmi JR_ONE           ; bit7 set -> JiffyDOS device -> fast single-byte receive
+    jmp $f841            ; else stock DolphinDOS parallel/serial fork
+JR_ONE:
+    lda #$3f
+    sta $dd02            ; DDRA: ATN/CLK/DATA-out outputs
+    lda #$e7
+    sta $dd00            ; assert DATA out (drive parks at FFB8)
+    jsr JT_RX            ; A = byte, JT_TERM = terminal
+    tax                  ; save byte across the terminal test
+    bit JT_TERM          ; V = CLK-in, N = DATA-in
+    bvc JR_MORE          ; CLK-in low = more (not EOI)
+    bmi JR_MORE          ; DATA-in high = more
+    lda $90
+    ora #$40             ; CLK-in high & DATA-in low = EOI
+    sta $90
+    txa
+    cli                  ; last byte -> restore interrupts
+    clc
+    rts
+JR_MORE:
+    txa
+    clc                  ; keep IRQs masked between bytes (no per-byte jitter)
+    rts
+JT_RX:
+JT_WC:
+    lda $dd00
+    and #$40             ; CLK in released/high?
+    beq JT_WC            ; spin until drive parked & ready (variable wait, DATA RELEASED by caller/prev byte)
+!if JT_USESTAB {
+    ldx #JT_STAB
+JT_WC2:
+    lda $dd00
+    and #$40
+    beq JT_WC            ; CLK dropped -> burst transient, restart
+    dex
+    bne JT_WC2
+}
+!if JT_BLANK {
+    lda $d011
+    and #$ef
+    sta $d011            ; BRING-UP SCAFFOLD: blank screen (debug only)
+} else {
+    sec                  ; raster guard (screen ON): keep the read window off VIC badlines
+JT_RG:
+    lda $d012            ; current raster line
+    sbc $d011            ; phase = (raster - YSCROLL); carry stays set across the spin
+    and #$07
+    cmp #$07
+    bcs JT_RG            ; spin while phase==7 (a badline starts next line) -> issue edge clear of it
+}
+    lda #$c7
+    sta $dd00            ; release DATA out = SYNC EDGE
+    lda #$07             ; seed A = K (CIA2 bank/RS232 low bits)
+    !fill JT_R0, $ea     ; edge -> read0 alignment (tunable)
+    eor $dd00            ; read0: A = pair0 in b6,7
+    lsr
+    lsr
+    !fill JT_R1, $ea
+    eor $dd00            ; read1
+    lsr
+    lsr
+    eor #$07
+    !fill JT_R2, $ea
+    eor $dd00            ; read2
+    lsr
+    lsr
+    eor #$07
+    !fill JT_R3, $ea
+    eor $dd00            ; read3 -> A = full byte
+    pha
+    !fill JT_TG, $ea
+    lda #$e7             ; DATA-assert value (bit/sta below preserve the bit flags)
+    bit $dd00            ; terminal: V = CLK-in (b6), N = DATA-in (b7)
+    sta $dd00            ; re-assert DATA = ACK -> drive re-parks at FFB8
+    php
+    pla
+    sta JT_TERM          ; stash terminal P (b6=CLK-in, b7=DATA-in)
+    pla                  ; A = received byte
+    rts
+    !fill $fc3f - *, $ea   ; pad JD receive block to the $fc3f boundary
+} else {
     !fill $99, $ea   ; $fba6-$fc3e BLANK LOAD"$"/directory read+list engine
+}
     sta $89                                  ; $fc3f
     stx $8a                                  ; $fc41
     !byte $87                                ; $72c7 (undefined opcode)
