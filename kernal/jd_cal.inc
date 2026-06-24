@@ -11,3 +11,12 @@ JT_R2 = 0        ; read1->read2 extra gap (on top of lsr lsr + eor#$07)
 JT_R3 = 0        ; read2->read3 extra gap
 JT_TG = 1        ; read3->terminal sample pad
 JT_BLANK = 0     ; 0 = screen ON + raster guard (final), 1 = blank scaffold (debug)
+; --- fast SAVE (send, JS_*) calibration ---
+; The send core JS_TX issues one CLK-release sync edge per byte, then writes $DD00
+; four times presenting bit-pairs (slot1=+11/slot2=+24/slot3=+35/slot4=+48 from the
+; edge). slot1/slot2 land naturally; slot3/slot4/park are padded (BYTES of $ea, 2cyc).
+JS_S2 = $0335    ; scratch: slot2 value precomputed before the burst (avoids lsr drift)
+JS_P2 = 2        ; slot1->slot2 pad (slot2 from scratch -> ~+23)
+JS_P3 = 2        ; slot2->slot3 pad (~+35)
+JS_P4 = 2        ; slot3->slot4 pad (~+47)
+JS_PP = 3        ; slot4->re-park pad

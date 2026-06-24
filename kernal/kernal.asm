@@ -1741,8 +1741,12 @@ JD_ENABLE = 1
     jsr $ee8e      ; IEC bus timing setup    ; $63bb
     jsr $ee97      ; Release CLK line        ; $63be
     jsr $eeb3      ; Additional IEC setup    ; $63c1
-    sei ; Ensure interrupts still off        ; $63c4
-    jmp $f96f      ; Continue to standard load routine ; $63c5
+    sei ; Ensure interrupts still off        ; $ed40 (byte-send entry, from CIOUT/$ed11)
+!if JD_ENABLE {
+    jmp JS_GATE    ; $ed41 fork: jiffy fast-send if armed, else stock $f96f
+} else {
+    jmp $f96f      ; $ed41 stock send engine
+}
 ; =============================================================================
 ; SERIAL_BIT_RECEIVE - Fallback bit-by-bit receive (when parallel unavailable)
 ; Receives 8 bits via IEC bus CLK/DATA lines, stores in $95
@@ -2537,7 +2541,64 @@ JT_GSTK:
     bpl $f419                                ; $f420
     rts                                      ; $f422
     !scr "ultimate"                         ; $f423-$f42a screen-code "ULTIMATE"
+!if JD_ENABLE {
+; =============================================================================
+; JS_TX - JiffyDOS fast SEND core (one byte to the listening drive), in $f42b hole.
+; Mirror of JT_RX: the C64 is the talker. Per byte: park CLK-out asserted / DATA-out
+; released and poll DATA-in (drive holds it low while sector-writing = flow control),
+; raster-guard (screen on), issue ONE CLK-release sync edge, then write $DD00 four
+; times presenting the bit-pairs the drive samples. Slot map (measured, doc 08):
+;   slot1 CLK=bit4 DATA=bit5  slot2 CLK=bit6 DATA=bit7
+;   slot3 CLK=bit3 DATA=bit1  slot4 CLK=bit2 DATA=bit0   (assert flag = the byte bit).
+; slot1/slot2 are computed inline (in-place mask); slot3/slot4 come from JS_T3/JS_T4
+; indexed by the low nibble. Byte to send is in $95; preserves nothing (caller saves).
+; =============================================================================
+JS_TX:
+    lda $95
+    and #$0f
+    tay                  ; Y = low nibble = JS_T3/JS_T4 index (slots 3,4)
+    lda $95
+    lsr
+    lsr
+    and #$30
+    ora #$07
+    sta JS_S2            ; precompute slot2 off the timing path (lsr lsr would drift it +2)
+    lda #$17
+    sta $dd00            ; park: CLK-out asserted, DATA-out released ($DD00 bit4=1)
+JS_WAIT:
+    lda $dd00
+    and #$80             ; DATA-in: drive asserts (=0) while busy writing a sector
+    beq JS_WAIT          ; spin while busy; steady state = released -> fall through
+    sec                  ; raster guard (screen ON): keep the burst off VIC badlines
+JS_RG:
+    lda $d012
+    sbc $d011
+    and #$07
+    cmp #$07
+    bcs JS_RG
+    lda #$07
+    sta $dd00            ; SYNC EDGE: release CLK (drive edge-locks)  [T0]
+    lda $95
+    and #$30
+    ora #$07
+    sta $dd00            ; slot1 (~+11): CLK=bit4, DATA=bit5 in place
+    !fill JS_P2, $ea
+    lda JS_S2
+    sta $dd00            ; slot2 (~+23): precomputed (no lsr drift)
+    !fill JS_P3, $ea
+    lda JS_T3,y
+    sta $dd00            ; slot3 (~+35): CLK=bit3, DATA=bit1
+    !fill JS_P4, $ea
+    lda JS_T4,y
+    sta $dd00            ; slot4 (~+48): CLK=bit2, DATA=bit0
+    !fill JS_PP, $ea
+    lda #$17
+    sta $dd00            ; re-park: CLK-out asserted (drive re-arms for next byte)
+    rts
+    !fill $f495 - *, $ea   ; pad JS_TX block to the $f495 boundary
+} else {
     !fill $6a, $ea   ; $f42b-$f494 BLANK ML-monitor command handlers
+}
     lsr                                    ; $f495
     bne $f4af                                ; $f496
     lda #$08                                 ; $f498
@@ -3190,8 +3251,18 @@ JD_LOOPCHK:
     beq JD_CONT          ; released -> CIOUT data byte, do not probe
     lda $9b              ; captured command byte (from JD_CAP at $ed5f)
     and #$60
-    cmp #$40             ; TALK only? (bit6 set, bit5 clear); LISTEN/2nd stay stock
-    bne JD_CONT          ; not a TALK -> no probe, keeps filename phase stock
+    cmp #$40             ; TALK ($40, bit6 set/bit5 clear) -> fast LOAD detect
+    beq JD_DOPROBE
+    cmp #$20             ; LISTEN ($20, bit5 set/bit6 clear)
+    bne JD_CONT          ; secondary/other -> no probe
+    ; LISTEN: M2 fast-SAVE detect is NOT armed here yet (the OPEN/turnaround fast-send
+    ; is unsolved - arming it breaks both SAVE and the LOAD filename phase). Clear the
+    ; jiffy flag so a stale LOAD arm cannot leak into a following SAVE's byte-send hook.
+    lda $9e
+    and #$7f
+    sta $9e
+    jmp JD_CONT
+JD_DOPROBE:
     lda $9e
     and #$7f             ; fresh-evaluate the jiffy flag for THIS talk
     sta $9e
@@ -3222,7 +3293,7 @@ JD_CAP:
     lda $95              ; command/data byte currently being clocked out
     sta $9b              ; stash it for the TALK gate above
     jmp $ee8e            ; perform the original CLK-assert, rts to $ed62
-    !fill $3c, $ea   ; (137 - 77 code = 60 bytes) remaining blank
+    !fill $fa6b - *, $ea   ; pad JD detect block to the $fa6b boundary
 } else {
     !fill $89, $ea   ; $f9e2-$fa6a pristine blank (137 bytes)
 }
@@ -3261,7 +3332,39 @@ JD_CAP:
     !fill $c, $ea   ; $faae-$fab9 BLANK CTRL+A key-repeat toggle (removed)
     jmp $e6ae                                ; $faba
     jmp $ec44                                ; $fabd
+!if JD_ENABLE {
+; =============================================================================
+; JS_GATE - byte-send fork (entered from $ed41 jmp). If the active listener is a
+; JiffyDOS drive ($9e bit7) and we are past the ATN command phase (ATN-out released),
+; fast-send the buffered byte ($95) via JS_TX; else fall through to the stock engine
+; ($f96f: Dolphin parallel probe / serial). Preserves Y (JS_TX uses it as table idx);
+; A is caller-saved by CIOUT, X is untouched by JS_TX. IRQs stay masked (sei at $ed40)
+; through the burst and are re-enabled by the stock close at end of SAVE.
+; JS_T3/JS_T4: low-nibble -> slot3/slot4 $DD00 value (CLK=bit3/DATA=bit1, CLK=bit2/DATA=bit0).
+; =============================================================================
+JS_GATE:
+    lda $9e
+    bpl JS_STOCK         ; not jiffy-armed -> stock send
+    lda $dd00
+    and #$08             ; ATN-out asserted? (command phase) -> stock
+    bne JS_STOCK
+    tya
+    pha                  ; preserve Y across JS_TX
+    jsr JS_TX            ; fast-send $95
+    pla
+    tay
+    clc                  ; CIOUT success
+    rts
+JS_STOCK:
+    jmp $f96f            ; stock Dolphin/serial send engine
+JS_T3:
+    !byte $07,$07,$27,$27,$07,$07,$27,$27,$17,$17,$37,$37,$17,$17,$37,$37
+JS_T4:
+    !byte $07,$27,$07,$27,$17,$37,$17,$37,$07,$27,$07,$27,$17,$37,$17,$37
+    !fill $fb02 - *, $ea   ; pad JS_GATE/tables block to the $fb02 boundary
+} else {
     !fill $42, $ea   ; $fac0-$fb01 BLANK directory decimal block-count printer
+}
     !fill $f, $00   ; $fb02-$fb10 BLANK F-key hardcopy fake-return data table
     !byte $8d,$8c,$02,$84,$c5,$ad,$8c,$02   ; $fb11-$fb2d SCNKEY stub (keeps Z contract) + EA pad
     !byte $60,$ea,$ea,$ea,$ea,$ea,$ea,$ea
