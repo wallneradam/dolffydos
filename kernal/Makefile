@@ -10,7 +10,7 @@ REF_MD5  = b3b0fa8410edef1a42dbccf87e798f6e
 
 all: $(ROM)
 
-$(ROM): kernal.asm
+$(ROM): kernal.asm jd_cal.inc
 	@mkdir -p rom
 	$(ACME) -o $(ROM) kernal.asm
 	@echo "built $(ROM) ($$(stat -f%z $(ROM)) bytes)"

@@ -2155,58 +2155,32 @@ JT_GSTK:
 } else {
     !fill $89, $ea   ; $f005-$f08d BLANK ML-monitor prologue + command loop
 }
-    jsr $2e3b                                ; $f08e
-    !byte $0d,$43,$5a                        ; $6715 (data: CR "CZ")
-    eor #$44                                 ; $f094
-    !byte $42                                ; $671a (undefined opcode)
-    and $4e56                                ; $f097
-    jsr $4320                                ; $f09a
-    bvc $f0bf                                ; $f09d
-    jsr $5350                                ; $f09f
-    !byte $20,$52,$59                        ; $6726 (data: " RY")
-    !byte $20,$52,$58                        ; $6729 (data: " RX")
-    jsr $4143                                ; $f0a8
-    jsr $5352                                ; $f0ab
-    jsr $2020                                ; $f0ae
-    jsr $000d                                ; $f0b1
-    eor ($5f,x)                              ; $f0b4
-    adc ($7f,x)                              ; $f0b6
-    cpy #$c1                                 ; $f0b8
-    !byte $db                                ; $673e (undefined opcode)
-    cpx #$ff                                 ; $f0bb
-    ora $2f49                                ; $f0bd
-    !byte $4f                                ; $6744 (undefined opcode)
-    jsr $5245                                ; $f0c1
-    !byte $52                                ; $6748 (undefined opcode)
-    !byte $4f                                ; $6749 (undefined opcode)
-    !byte $52                                ; $674a (undefined opcode)
-    jsr $0da3                                ; $f0c7
-    !byte $53                                ; $674e (undefined opcode)
-    eor $41                                  ; $f0cb
-    !byte $52                                ; $6751 (undefined opcode)
-    !byte $43                                ; $6752 (undefined opcode)
-    pha                                      ; $f0cf
-    eor #$4e                                 ; $f0d0
-    !byte $47                                ; $6756 (undefined opcode)
-    ldy #$46                                 ; $f0d3
-    !byte $4f                                ; $6759 (undefined opcode)
-    !byte $52                                ; $675a (undefined opcode)
-    ldy #$0d                                 ; $f0d7
-    bvc $f127                                ; $f0d9
-    eor ($59,x)                              ; $f0db
-    !byte $bf                                ; $6761 (undefined opcode)
-    !byte $52                                ; $6762 (undefined opcode)
-    eor $43                                  ; $f0df
-    rol $50                                  ; $f0e1
-    !byte $4c,$41,$59                        ; $6767 (data: "LAY")
-    !byte $bf                                ; $676a (undefined opcode)
-    jsr $2da4                                ; $f0e7
-    ldy $20                                  ; $f0ea
-    sei                                      ; $f0ec
-    sbc ($20),y                              ; $f0ed
-    clv                                      ; $f0ef
-    sbc ($2c),y                              ; $f0f0
-    !byte $0d,$dd,$60                        ; $6776 (data)
+    !text " ;."                              ; $f08e
+    !byte $0d
+    !text "CZIDB-VN  CP  PS RY RX CA RS    "
+    !byte $0d,$00
+    !byte $41,$5f,$61,$7f,$c0,$c1,$db,$e0,$ff ; $f0b4
+    !byte $0d                                ; $f0bd
+    !text "I/O ERROR "
+    !byte $a3
+    !byte $0d                                ; $f0c9
+    !text "SEARCHING"
+    !byte $a0
+    !text "FOR"                              ; $f0d4
+    !byte $a0
+    !byte $0d                                ; $f0d8
+    !text "PLAY"
+    !byte $bf
+    !text "REC&PLAY"                         ; $f0de
+    !byte $bf
+    !text " "                                ; $f0e7
+    !byte $a4
+    !text "-"                                ; $f0e9
+    !byte $a4
+    jsr $f178                                ; $f0eb
+    jsr $f1b8                                ; $f0ee
+    bit $dd0d                                ; $f0f1
+    rts                                      ; $f0f4
     ldx #$35                                 ; $f0f5
     ldy #$f2                                 ; $f0f7
     lda $93                                  ; $f0f9
@@ -2215,25 +2189,22 @@ JT_GSTK:
     lda #$01                                 ; $f0fe
     bit $02a9                                ; $f100
     jmp $ffbd                                ; $f103
-    ora $4f4c                                ; $f106
-    eor ($44,x)                              ; $f109
-    eor #$4e                                 ; $f10b
-    !byte $c7                                ; $6791 (undefined opcode)
-    ora $4153                                ; $f10e
-    lsr $49,x                                ; $f111
-    lsr $a047                                ; $f113
-    ora $4556                                ; $f116
-    !byte $52                                ; $679d (undefined opcode)
-    eor #$46                                 ; $f11a
-    eor $4e49,y                              ; $f11c
-    !byte $c7                                ; $67a3 (undefined opcode)
-    ora $4f46                                ; $f120
-    eor $4e,x                                ; $f123
-    !byte $44                                ; $67a9 (undefined opcode)
-    ldy #$0d                                 ; $f126
-    !byte $4f                                ; $67ac (undefined opcode)
-    !byte $4b                                ; $67ad (undefined opcode)
-    sta $9d24                                ; $f12a
+    !byte $0d                                ; $f106
+    !text "LOADIN"
+    !byte $c7
+    !byte $0d                                ; $f10e
+    !text "SAVING"
+    !byte $a0
+    !byte $0d                                ; $f116
+    !text "VERIFYIN"
+    !byte $c7
+    !byte $0d                                ; $f120
+    !text "FOUND"
+    !byte $a0
+    !byte $0d                                ; $f127
+    !text "OK"
+    !byte $8d
+    bit $9d                                  ; $f12b
     bpl $f13c                                ; $f12d
     lda $f0bd,y                              ; $f12f
     php                                      ; $f132
@@ -3242,7 +3213,8 @@ JS_RP:
 ; passive (its byte-ack comes only after bit 8), so the window discriminates the
 ; two. On a hit set $9e bit7 and wait for the drive to release DATA before
 ; clocking the last bit (else the loop-top $ed6e bcc mis-reads it as EOI).
-; Touches only $dd00 (read), $9e, X. Never writes $dc0c/$dd01/$dd03.
+; Touches $dd00 (read), $9e, $9b; X is saved+restored (the stock LOAD relies on it
+; to carry the SA/reloc flag across TALK). Never writes $dc0c/$dd01/$dd03.
 ; =============================================================================
 JD_WINDOW = $30          ; ~633us probe window (placeholder - calibrate in M1)
 JD_LOOPCHK:
@@ -3261,6 +3233,10 @@ JD_LOOPCHK:
     cmp #$20             ; LISTEN ($20, bit5 set/bit6 clear) -> fast SAVE detect (M2)
     bne JD_CONT          ; secondary/other -> no probe
 JD_DOPROBE:
+    txa
+    pha                  ; preserve X: stock LOAD holds the SA/reloc flag here across
+                         ; TALK/TKSA ($f4bf ldx $b9 .. $f4e5 txa); we use X as the
+                         ; probe window counter, so save+restore it on the probe path
     lda $9e
     and #$7f             ; fresh-evaluate the jiffy flag for THIS talk
     sta $9e
@@ -3271,7 +3247,7 @@ JD_PW:
     beq JD_HIT           ; pulled low -> JiffyDOS drive answered
     dex
     bne JD_PW
-    jmp JD_CONT          ; window expired -> stock drive (flag left clear)
+    jmp JD_PEXIT         ; window expired -> stock drive (flag left clear)
 JD_HIT:
     lda $9e
     ora #$80             ; set jiffy-capable flag (bit7)
@@ -3280,9 +3256,12 @@ JD_HIT:
 JD_HR:
     lda $dd00
     and #$80
-    bne JD_CONT          ; released -> safe to clock the last bit
+    bne JD_PEXIT         ; released -> safe to clock the last bit
     dex
     bne JD_HR
+JD_PEXIT:
+    pla
+    tax                  ; restore the SA/reloc flag for the stock LOAD relocate decision
 JD_CONT:
     jmp $ed66            ; back to loop top (clock next/last bit)
 JD_TOACK:

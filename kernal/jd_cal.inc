@@ -8,7 +8,7 @@ JT_STAB = 4      ; CLK-in stability confirm count (kills sync-phase jitter)
 JT_R0 = 5        ; edge->read0 ~+16 (only working steady-state offset; window is razor-thin)
 JT_R1 = 1        ; read0->read1 extra gap (on top of lsr lsr)
 JT_R2 = 0        ; read1->read2 extra gap (on top of lsr lsr + eor#$07)
-JT_R3 = 0        ; read2->read3 extra gap
+JT_R3 = 1        ; read2->read3 extra gap (centers PAL/NTSC slot4)
 JT_TG = 1        ; read3->terminal sample pad
 JT_BLANK = 0     ; 0 = screen ON + raster guard (final), 1 = blank scaffold (debug)
 ; --- fast SAVE (send, JS_*) calibration ---
