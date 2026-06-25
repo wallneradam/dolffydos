@@ -32,6 +32,7 @@ F-key/special handler (`$F533` → `$FECA` chain), now neutralised.
 
 | Key    | Code  | Handler       | Action                          |
 | ------ | ----- | ------------- | ------------------------------- |
+| CTRL+A | `$01` | `$FAAE-$FAB9` | toggle key-repeat flag `$028A`  |
 | CTRL+B | `$02` | `$FA88-$FA96` | cursor to bottom of screen      |
 | CTRL+G | `$07` | `$FA6B-$FA7E` | cursor 20 columns forward       |
 | CTRL+K | `$0B` | `$FA97-$FAAD` | clear right side of line        |
@@ -44,7 +45,6 @@ CTRL+B → row 24).
 
 | Key       | Original function                  | Original site(s)                 | Current state                                              |
 | --------- | ---------------------------------- | -------------------------------- | --------------------------------------------------------- |
-| CTRL+A    | key-repeat flag toggle (`$028A`)   | `$FAAE-$FAB9` handler            | **removed this session**: `$FA99` miss-branch retargeted `$13`→`$22` (→`$FABD jmp $ec44`), `$FAAE-$FAB9` → `$EA`. Verified: `$028A` no longer toggles |
 | CTRL+D    | disk directory (`LOAD"$"`)         | `$FECA cmp #$04` → `$FBA6` engine | `$FECA` stubbed `rts`; engine `$FBA6-$FC3E` blanked; residual tail `$FECC-$FEDE` blanked this session |
 | CTRL+@    | drive status                       | `$E591 jmp $fba9`               | `$E591` stubbed (`clc`/`rts`/`nop`); status body `$FBA9-$FC3E` blanked. Already removed |
 | CTRL+\*   | screen hardcopy to printer         | `$FB11` SCNKEY detect → `$FB2E`  | `$FB11` stubbed (detector gone); body `$FB2E-$FB8D` blanked. Already removed |

@@ -3328,7 +3328,7 @@ JD_CAP:
     jsr $e56a                                ; $fa92
     bmi $faba                                ; $fa95
     cmp #$0b                                 ; $fa97
-    bne $fabd                                ; $fa99
+    bne $faae                                ; $fa99
     jsr $ea24                                ; $fa9b
     lda #$20                                 ; $fa9e
     sta ($d1),y                              ; $faa0
@@ -3338,7 +3338,11 @@ JD_CAP:
     bcc $fa9e                                ; $faa8
     beq $fa9e                                ; $faaa
     bcs $faba                                ; $faac
-    !fill $c, $ea   ; $faae-$fab9 BLANK CTRL+A key-repeat toggle (removed)
+    cmp #$01                                 ; $faae
+    bne $fabd                                ; $fab0
+    lda $028a                                ; $fab2
+    eor #$80                                 ; $fab5
+    sta $028a                                ; $fab7
     jmp $e6ae                                ; $faba
     jmp $ec44                                ; $fabd
 !if JD_ENABLE {

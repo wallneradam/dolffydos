@@ -34,7 +34,6 @@ across six holes (see "Now in use" below).
 | `$F72C-$F735`  |   10 | `$EA` | ML-monitor helper                                                |
 | `$F8AF-$F8CA`  |   28 | `$00` | ML-monitor handler-address table (14 pairs)                      |
 | `$FA37-$FA6A`  |   52 | `$EA` | tail slack after the JiffyDOS detection probe (`JD_LOOPCHK`/`JD_CAP`, `$F9E2-$FA36`) |
-| `$FAAE-$FAB9`  |   12 | `$EA` | CTRL+A key-repeat toggle (removed)                               |
 | `$FAF7-$FB10`  |   26 | mixed | tail slack after the JiffyDOS fast-SAVE gate + slot tables (`JS_GATE`/`JS_T3`/`JS_T4`, `$FAC0-$FAF6`) |
 | `$FB1A-$FB2D`  |   20 | `$EA` | screen->printer hardcopy body before JiffyDOS bank helpers        |
 | `$FB61-$FB8D`  |   45 | `$EA` | screen->printer hardcopy body after JiffyDOS bank helpers         |
