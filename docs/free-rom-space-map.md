@@ -1,7 +1,7 @@
 # Dolffy DOS — usable free ROM space (current map)
 
 Live map of the overwritable holes in the **current** `kernal/rom/dolffy.rom`
-(MD5 `f282ab0e`), origin `$E000`, fixed 8192 bytes. These are the bytes the
+(MD5 `c3ba2bb3`), origin `$E000`, fixed 8192 bytes. These are the bytes the
 DolphinDOS-2 feature removal (the "bake") freed — available for further Ultimate
 add-ons (border clock, shift-lock indicator, etc.).
 
@@ -9,7 +9,7 @@ add-ons (border clock, shift-lock indicator, etc.).
 fill that diverges from the pristine DolphinDOS-2 base (`kernal/reference/dolphindos2-faithful-b3b0.rom`).
 Regenerate this map after any bake or feature change; see the one-liner at the bottom.
 
-**Total free: 623 bytes in 24 regions.** The ROM stays exactly 8192 bytes — you
+**Total free: 611 bytes in 23 regions.** The ROM stays exactly 8192 bytes — you
 cannot shrink the file, only fill these holes (use `jmp` glue to span them).
 
 The JiffyDOS fast serial work (M1 LOAD + M2 SAVE + M3 detection + GEOS-safe
@@ -76,6 +76,16 @@ above. Listed so the next add-on does not reclaim the used part.
 
 Plus a 4-byte splice at `$ED8E` (`jmp JD_LOOPCHK`) and the `JD_CAP` capture at
 `$ED5F` (both inside the live IEC command-send loop, not in any hole).
+
+## Now in use — `@` directory wedge
+
+The old DolphinDOS `@`/`&`/`*` wedge body at `$F775-$F816` has been replaced with
+a focused non-destructive directory streamer. `$E38E` jumps to `$F775`; `$F775-$F816`
+implements `@$` (drive 8) and `@$9` (drive 9) by opening `"$"` and streaming the
+directory to the screen without loading it into BASIC text memory. The streamer
+checks `$90` after directory line-header and filename-byte reads so EOF, timeout,
+or missing drive 9 cannot loop forever. `$E115` remains stock; the old `&`, `*`,
+quoted-load helper paths, and incidental `@$8` spelling were not restored.
 
 ## Hazards — live bytes inside/adjacent to the holes (do NOT overwrite)
 

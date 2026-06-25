@@ -72,13 +72,20 @@ wrapper. No cut/paste buffer code is present.
 | F-key macros + dispatch         | `$F387-$F3D4`, `$F533-$F554`, `$E5E7` (rewritten)   | programmable function-key strings + dispatch         | blanked; editor hook rewritten to `jsr $e5b4` |
 | Fast directory display          | `$F1AA-$F1AC`, `$F9E2-$FA6A`, `$FAC0-$FB01`, `$FB97-$FB9D`, `$FBA6-$FC3E` | `LOAD"$"` read + on-screen list renderer             | blanked `$EA`          |
 | Screen → printer hardcopy       | `$FB11` (stub), `$FB2E-$FB8D`, `$FB02-$FB10`        | dump screen to printer (OPEN 4)                      | detector stubbed, body blanked |
-| BASIC `@`/`&`/`*` wedge         | `$E115` & `$E38E` (hooks), `$F775`-`$F7FC` (body)   | `@`/`&`/`*` commands at the READY prompt             | hooks restored to stock; `@`/`&`/`*` now `?SYNTAX ERROR` |
+| BASIC `@`/`&`/`*` wedge         | `$E115` & `$E38E` (hooks), `$F775-$F816` body       | `@`/`&`/`*` commands at the READY prompt             | repurposed for `@$` / `@$9` only                         |
 
 † `$F409-$F42A` of the monitor-handler hole has since been re-used for the
 Ultimate UCI boot-banner patch: `$E429` calls `$F409`, which prints the original
 `$E473` startup banner, reads UCI ident `$DF1D`, and only when it returns `$C9`
 writes `!scr "ultimate"` over the on-screen `BASIC V2` at `$043E-$0445`.
 Only `$F42B-$F494` is free.
+
+The current `@` wedge is not the original DolphinDOS command set. `$E38E`
+dispatches to a new non-destructive directory streamer at `$F775-$F816`;
+`@$` lists drive 8 and `@$9` lists drive 9 without loading the directory into
+BASIC text memory. It checks `$90` while streaming so EOF, timeout, or a missing
+drive 9 exits instead of looping. `$E115` stays stock, and the old `&`, `*`,
+quoted-load helper paths, and incidental `@$8` spelling were not restored.
 
 ## Restoring a feature
 

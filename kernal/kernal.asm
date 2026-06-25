@@ -476,7 +476,7 @@ JD_ENABLE = 1
     jmp ($0300)                              ; $e388
     txa                                      ; $e38b
     bmi $e391                                ; $e38c
-    jmp $a43a                                ; $e38e
+    jmp AT_DIR_WEDGE                         ; $e38e
     jmp $a474                                ; $e391
     jsr $e453                                ; $e394
     jsr $e3bf                                ; $e397
@@ -2939,82 +2939,90 @@ JS_RP:
     bpl $f772                                ; $f76d
     inc $dd03                                ; $f76f
     jmp $eea0                                ; $f772
-    bcs $f7c0                                ; $f775
-    cmp #$0d                                 ; $f777
-    bne $f7bf                                ; $f779
-    lda #$00                                 ; $f77b
-    sta $0200,x                              ; $f77d
-    bit $9d                                  ; $f780
-    bpl $f797                                ; $f782
-    ldx #$ff                                 ; $f784
-    inx                                      ; $f786
-    lda $0200,x                              ; $f787
-    cmp #$20                                 ; $f78a
-    beq $f786                                ; $f78c
-    cmp #$40                                 ; $f78e
-    bne $f797                                ; $f790
-    lda #$22                                 ; $f792
-    sta $0200,x                              ; $f794
-    pla                                      ; $f797
-    pla                                      ; $f798
-    jmp $aacf                                ; $f799
-    eor #$0b                                 ; $f79c
-    beq $f7a3                                ; $f79e
-    jmp $a43a                                ; $f7a0
-    tay                                      ; $f7a3
-    pla                                      ; $f7a4
-    cmp #$a7                                 ; $f7a5
-    bne $f7a0                                ; $f7a7
-    pla                                      ; $f7a9
-    lda ($7a),y                              ; $f7aa
-    cmp #$22                                 ; $f7ac
-    beq $f7b7                                ; $f7ae
-    cmp #$40                                 ; $f7b0
-    bne $f7c3                                ; $f7b2
-    jsr $0073                                ; $f7b4
-    jsr $e1d4                                ; $f7b7
-    jsr $e591                                ; $f7ba
-    bcs $f7c0                                ; $f7bd
-    rts                                      ; $f7bf
-    jmp $e0f9                                ; $f7c0
-    cmp #$26                                 ; $f7c3
-    bne $f7a0                                ; $f7c5
-    jsr $0073                                ; $f7c7
-    bne $f7cf                                ; $f7ca
-    jmp $e4b7                                ; $f7cc
-    cmp #$22                                 ; $f7cf
-    bne $f7e4                                ; $f7d1
-    jsr $e1d4                                ; $f7d3
-    lda #$00                                 ; $f7d6
-    jsr $ffd5                                ; $f7d8
-    bcs $f7c0                                ; $f7db
-    lda $c3                                  ; $f7dd
-    ldx $c4                                  ; $f7df
-    jmp $e4bb                                ; $f7e1
-    cmp #$ac                                 ; $f7e4
-    bne $f7fd                                ; $f7e6
-    iny                                      ; $f7e8
-    sta ($2b),y                              ; $f7e9
-    jsr $a533                                ; $f7eb
-    lda $22                                  ; $f7ee
-    adc #$02                                 ; $f7f0
-    sta $2d                                  ; $f7f2
-    lda $23                                  ; $f7f4
-    adc #$00                                 ; $f7f6
-    sta $2e                                  ; $f7f8
-    jmp $e1ab                                ; $f7fa
-    jsr $f1a7                                ; $f7fd
-    ldy #$2a                                 ; $f800
-    jsr $f12f                                ; $f802
-    lda $15                                  ; $f805
-    tay                                      ; $f807
-    ldx $14                                  ; $f808
-    jsr $f894                                ; $f80a
-    lda #$3d                                 ; $f80d
-    jsr $ffd2                                ; $f80f
-    tya                                      ; $f812
-    jmp $bdcd                                ; $f813
-    rts                                      ; $f816
+AT_DIR_WEDGE:
+    eor #$0b                                 ; $f775 direct-mode wedge sentinel
+    beq AT_DIR_ENTRY
+AT_DIR_SYNTAX:
+    jmp $a43a
+AT_DIR_ENTRY:
+    tay
+    pla
+    cmp #$a7
+    bne AT_DIR_SYNTAX
+    pla
+    lda ($7a),y
+    cmp #$40                                 ; "@"
+    bne AT_DIR_SYNTAX
+    jsr $0073                                ; get char after "@"
+    cmp #$24                                 ; "$"
+    bne AT_DIR_SYNTAX
+    lda #$08
+    sta $ba                                  ; default: @$ lists drive 8
+    jsr $0073                                ; optional drive digit after "$"
+    beq AT_DIR_LIST
+    cmp #$39                                 ; "9"
+    bne AT_DIR_SYNTAX
+    inc $ba
+    jsr $0073
+    bne AT_DIR_SYNTAX
+AT_DIR_LIST:
+    lda #$01
+    ldx $ba
+    ldy #$00
+    jsr $ffba                                ; SETLFS 1,dev,0
+    lda #$01
+    ldx #<AT_DIR_NAME
+    ldy #>AT_DIR_NAME
+    jsr $ffbd                                ; SETNAM "$"
+    jsr $ffc0                                ; OPEN
+    bcs AT_DIR_KERR
+    ldx #$01
+    jsr $ffc6                                ; CHKIN
+    bcs AT_DIR_KERR
+    jsr $ffcf                                ; skip directory load address
+    jsr $ffcf
+AT_DIR_LINE:
+    jsr $ffcf                                ; next-line pointer low
+    sta $fb
+    jsr $ffcf                                ; next-line pointer high
+    ldx $90
+    bne AT_DIR_DONE
+    ora $fb
+    beq AT_DIR_DONE
+    jsr $ffcf                                ; block count low
+    sta $14
+    jsr $ffcf                                ; block count high
+    tax
+    lda $14
+    jsr $bdcd                                ; print A/X as unsigned integer
+    lda #$20
+    jsr $ffd2
+AT_DIR_CHARS:
+    jsr $ffcf
+    ldx $90
+    bne AT_DIR_DONE
+    cmp #$00
+    beq AT_DIR_EOL
+    jsr $ffd2
+    jmp AT_DIR_CHARS
+AT_DIR_EOL:
+    lda #$0d
+    jsr $ffd2
+    jmp AT_DIR_LINE
+AT_DIR_DONE:
+    jsr $ffcc                                ; CLRCHN
+    lda #$01
+    jsr $ffc3                                ; CLOSE
+    clc
+    rts
+AT_DIR_KERR:
+    tax
+    jsr $ffcc
+    txa
+    jmp $e0f9
+AT_DIR_NAME:
+    !byte $24
+    !fill $f817 - *, $ea
     jsr $f82e                                ; $f817
     beq $f836                                ; $f81a
     ldy #$1b                                 ; $f81c
