@@ -16,8 +16,8 @@ JRX    = $033a   ; receive: caller's X (LOAD ,1/relocate flag) saved across JT_R
 JS_S1  = $033c   ; scratch: slot1 value precomputed before the burst
 JS_S3  = $033d   ; scratch: slot3 value precomputed before the burst
 JS_S4  = $033e   ; scratch: slot4 value precomputed before the burst
-JT_USESTAB = 1   ; 1 = CLK-in stability confirm loop (anti-jitter), 0 = single CLK check
-JT_STAB = 4      ; CLK-in stability confirm count (kills sync-phase jitter)
+JT_USESTAB = 1   ; 1 = CLK-in stability confirm (anti-jitter), 0 = single CLK check
+JT_STAB = 1      ; one confirm read is enough for NTSC; higher values slow every LOAD byte
 JT_R0 = 5        ; edge->read0 ~+16 (only working steady-state offset; window is razor-thin)
 JT_R1 = 1        ; read0->read1 extra gap (on top of lsr lsr)
 JT_R2 = 0        ; read1->read2 extra gap (on top of lsr lsr + eor#$07)

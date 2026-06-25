@@ -3439,8 +3439,8 @@ JDISP:                          ; ACPTR fork ($ee18 jmp JDISP)
     jmp $f841            ; else stock DolphinDOS parallel/serial fork
 JR_ONE:
     jsr JD_BANKSET       ; DDRA out + capture VIC bank + park (DATA asserted, bank preserved)
-    stx JRX              ; preserve caller's X across JT_RX: its JT_WC2 stability loop (ldx/dex)
-    jsr JT_RX            ; clobbers X. The stock LOAD carries the ,1/relocate flag in X across
+    stx JRX              ; preserve caller's X across JT_RX if a looped stability variant uses X
+    jsr JT_RX            ; The stock LOAD carries the ,1/relocate flag in X across
     bit JT_TERM          ; the two load-address ACPTRs ($f4d5/$f4e0 -> $f4e5 txa/bne); losing it
     bvc JR_MORE          ; mis-relocates LOAD"$"/LOAD"name" (no ,1) into the file's own address.
     bmi JR_MORE          ; (A = byte survives `bit`; DATA-in high / CLK-in low = more, not EOI)
@@ -3456,17 +3456,20 @@ JR_MORE:
     rts
 JT_RX:
 JT_WC:
-    lda $dd00
-    and #$40             ; CLK in released/high?
-    beq JT_WC            ; spin until drive parked & ready (variable wait, DATA RELEASED by caller/prev byte)
+    bit $dd00
+    bvc JT_WC            ; spin until drive parked & ready (CLK-in high)
 !if JT_USESTAB {
+!if JT_STAB = 1 {
+    bit $dd00
+    bvc JT_WC            ; one confirm read filters the NTSC false-high transient
+} else {
     ldx #JT_STAB
 JT_WC2:
-    lda $dd00
-    and #$40
-    beq JT_WC            ; CLK dropped -> burst transient, restart
+    bit $dd00
+    bvc JT_WC            ; CLK dropped -> burst transient, restart
     dex
     bne JT_WC2
+}
 }
 !if JT_BLANK {
     lda $d011
