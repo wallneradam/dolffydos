@@ -11,6 +11,8 @@ JPARK  = $0338   ; receive park/ACK value  = $e4 | JV (DATA asserted, bank prese
 JEDGE  = $0339   ; receive sync-edge value = $c4 | JV (DATA released, bank preserved)
 JSEDGE = $033a   ; send sync-edge / EOI / slot-OR base = $04 | JV (both lines released base)
 JSPARK = $033b   ; send park/re-park value = $14 | JV (CLK asserted, bank preserved)
+JRX    = $033a   ; receive: caller's X (LOAD ,1/relocate flag) saved across JT_RX's X-clobbering
+                 ; stability loop (aliases send-only JSEDGE; send + receive never run together)
 JS_S1  = $033c   ; scratch: slot1 value precomputed before the burst
 JS_S3  = $033d   ; scratch: slot3 value precomputed before the burst
 JS_S4  = $033e   ; scratch: slot4 value precomputed before the burst

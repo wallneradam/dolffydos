@@ -2171,6 +2171,21 @@ JS_PREP:
     ora JSEDGE
     sta JS_S4            ; slot4: CLK=bit2, DATA=bit0, bank preserved
     rts
+; DIRCHK - LOAD"$" (no device) sets the secondary to 1 = "load to file address", so the
+; directory (native addr $0401 = screen RAM) lands on screen with empty LIST. The directory
+; must ALWAYS relocate to BASIC start, like LOAD"$",8 and the DolphinDOS parallel path. Spliced
+; in at the $f4e5 relocate decision; only "$" is forced, every other load still honours its SA.
+DIRCHK:
+    ldy #$00
+    lda ($bb),y          ; first char of the filename
+    cmp #$24             ; "$" = directory?
+    beq DC_RELOC         ; yes -> always relocate (ignore the SA)
+    txa                  ; no -> honour the secondary/relocate flag (X = SA from $f4bf)
+    bne DC_FILE          ; X != 0 -> load to the file's own address
+DC_RELOC:
+    jmp $f4e8            ; stock relocate: lda $c3/sta $ae/lda $c4/sta $af -> jmp $eebb
+DC_FILE:
+    jmp $f4f0            ; jmp $eebb with $ae/$af = the file's address
     !fill $f08e - *, $ea
 } else {
     !fill $89, $ea   ; $f005-$f08d BLANK ML-monitor prologue + command loop
@@ -2625,8 +2640,12 @@ JS_RP:
     bcs $f530                                ; $f4de
     jsr $ee13                                ; $f4e0
     sta $af                                  ; $f4e3
+!if JD_ENABLE {
+    jmp DIRCHK                               ; $f4e5 force "$" directory to relocate (serial fix)
+} else {
     txa                                      ; $f4e5
     bne $f4f0                                ; $f4e6
+}
     lda $c3                                  ; $f4e8
     sta $ae                                  ; $f4ea
     lda $c4                                  ; $f4ec
@@ -3420,21 +3439,20 @@ JDISP:                          ; ACPTR fork ($ee18 jmp JDISP)
     jmp $f841            ; else stock DolphinDOS parallel/serial fork
 JR_ONE:
     jsr JD_BANKSET       ; DDRA out + capture VIC bank + park (DATA asserted, bank preserved)
-    jsr JT_RX            ; A = byte, JT_TERM = terminal
-    tax                  ; save byte across the terminal test
-    bit JT_TERM          ; V = CLK-in, N = DATA-in
-    bvc JR_MORE          ; CLK-in low = more (not EOI)
-    bmi JR_MORE          ; DATA-in high = more
+    stx JRX              ; preserve caller's X across JT_RX: its JT_WC2 stability loop (ldx/dex)
+    jsr JT_RX            ; clobbers X. The stock LOAD carries the ,1/relocate flag in X across
+    bit JT_TERM          ; the two load-address ACPTRs ($f4d5/$f4e0 -> $f4e5 txa/bne); losing it
+    bvc JR_MORE          ; mis-relocates LOAD"$"/LOAD"name" (no ,1) into the file's own address.
+    bmi JR_MORE          ; (A = byte survives `bit`; DATA-in high / CLK-in low = more, not EOI)
+    pha                  ; EOI: set ST bit6 without losing the byte in A
     lda $90
-    ora #$40             ; CLK-in high & DATA-in low = EOI
+    ora #$40
     sta $90
-    txa
+    pla
     cli                  ; last byte -> restore interrupts
-    clc
-    rts
 JR_MORE:
-    txa
-    clc                  ; keep IRQs masked between bytes (no per-byte jitter)
+    ldx JRX              ; restore caller's X (the relocate flag)
+    clc                  ; (more) keep IRQs masked between bytes (no per-byte jitter)
     rts
 JT_RX:
 JT_WC:
