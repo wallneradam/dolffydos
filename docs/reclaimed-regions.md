@@ -83,9 +83,11 @@ Only `$F42B-$F494` is free.
 The current `@` wedge is not the original DolphinDOS command set. `$E38E`
 dispatches to a new non-destructive directory streamer at `$F775-$F816`;
 `@$` lists drive 8 and `@$9` lists drive 9 without loading the directory into
-BASIC text memory. It checks `$90` while streaming so EOF, timeout, or a missing
-drive 9 exits instead of looping. `$E115` stays stock, and the old `&`, `*`,
-quoted-load helper paths, and incidental `@$8` spelling were not restored.
+BASIC text memory. It prints block counts through BASIC `$BDCD` with high byte
+in A and low byte in X, then preserves the directory stream's own spacing. It
+checks `$90` while streaming so EOF, timeout, or a missing drive 9 exits instead
+of looping. `$E115` stays stock, and the old `&`, `*`, quoted-load helper paths,
+and incidental `@$8` spelling were not restored.
 
 ## Restoring a feature
 

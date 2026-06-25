@@ -1,7 +1,7 @@
 # Dolffy DOS — usable free ROM space (current map)
 
 Live map of the overwritable holes in the **current** `kernal/rom/dolffy.rom`
-(MD5 `c3ba2bb3`), origin `$E000`, fixed 8192 bytes. These are the bytes the
+(MD5 `7049c5ee`), origin `$E000`, fixed 8192 bytes. These are the bytes the
 DolphinDOS-2 feature removal (the "bake") freed — available for further Ultimate
 add-ons (border clock, shift-lock indicator, etc.).
 
@@ -9,7 +9,7 @@ add-ons (border clock, shift-lock indicator, etc.).
 fill that diverges from the pristine DolphinDOS-2 base (`kernal/reference/dolphindos2-faithful-b3b0.rom`).
 Regenerate this map after any bake or feature change; see the one-liner at the bottom.
 
-**Total free: 611 bytes in 23 regions.** The ROM stays exactly 8192 bytes — you
+**Total free: 615 bytes in 24 regions.** The ROM stays exactly 8192 bytes — you
 cannot shrink the file, only fill these holes (use `jmp` glue to span them).
 
 The JiffyDOS fast serial work (M1 LOAD + M2 SAVE + M3 detection + GEOS-safe
@@ -32,6 +32,7 @@ across six holes (see "Now in use" below).
 | `$F487-$F494`  |   14 | `$EA` | slack inside the JiffyDOS fast-SAVE core block (tail to `$F495`)  |
 | `$F533-$F554`  |   34 | `$EA` | F-key dispatch                                                   |
 | `$F72C-$F735`  |   10 | `$EA` | ML-monitor helper                                                |
+| `$F813-$F816`  |    4 | `$EA` | slack after `@$` / `@$9` directory streamer                      |
 | `$F8AF-$F8CA`  |   28 | `$00` | ML-monitor handler-address table (14 pairs)                      |
 | `$FA37-$FA6A`  |   52 | `$EA` | tail slack after the JiffyDOS detection probe (`JD_LOOPCHK`/`JD_CAP`, `$F9E2-$FA36`) |
 | `$FAF7-$FB10`  |   26 | mixed | tail slack after the JiffyDOS fast-SAVE gate + slot tables (`JS_GATE`/`JS_T3`/`JS_T4`, `$FAC0-$FAF6`) |
@@ -82,7 +83,9 @@ Plus a 4-byte splice at `$ED8E` (`jmp JD_LOOPCHK`) and the `JD_CAP` capture at
 The old DolphinDOS `@`/`&`/`*` wedge body at `$F775-$F816` has been replaced with
 a focused non-destructive directory streamer. `$E38E` jumps to `$F775`; `$F775-$F816`
 implements `@$` (drive 8) and `@$9` (drive 9) by opening `"$"` and streaming the
-directory to the screen without loading it into BASIC text memory. The streamer
+directory to the screen without loading it into BASIC text memory. Block counts
+are passed to BASIC `$BDCD` as high byte in A, low byte in X; directory-provided
+spacing is preserved with a single CHROUT space after the count. The streamer
 checks `$90` after directory line-header and filename-byte reads so EOF, timeout,
 or missing drive 9 cannot loop forever. `$E115` remains stock; the old `&`, `*`,
 quoted-load helper paths, and incidental `@$8` spelling were not restored.

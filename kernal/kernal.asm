@@ -2990,10 +2990,8 @@ AT_DIR_LINE:
     ora $fb
     beq AT_DIR_DONE
     jsr $ffcf                                ; block count low
-    sta $14
-    jsr $ffcf                                ; block count high
     tax
-    lda $14
+    jsr $ffcf                                ; block count high
     jsr $bdcd                                ; print A/X as unsigned integer
     lda #$20
     jsr $ffd2
