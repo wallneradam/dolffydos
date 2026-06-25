@@ -1,7 +1,7 @@
 # Dolffy DOS — usable free ROM space (current map)
 
 Live map of the overwritable holes in the **current** `kernal/rom/dolffy.rom`
-(MD5 `8d2193b3`), origin `$E000`, fixed 8192 bytes. These are the bytes the
+(MD5 `f282ab0e`), origin `$E000`, fixed 8192 bytes. These are the bytes the
 DolphinDOS-2 feature removal (the "bake") freed — available for further Ultimate
 add-ons (border clock, shift-lock indicator, etc.).
 
@@ -9,19 +9,19 @@ add-ons (border clock, shift-lock indicator, etc.).
 fill that diverges from the pristine DolphinDOS-2 base (`kernal/reference/dolphindos2-faithful-b3b0.rom`).
 Regenerate this map after any bake or feature change; see the one-liner at the bottom.
 
-**Total free: 634 bytes in 24 regions.** The ROM stays exactly 8192 bytes — you
+**Total free: 623 bytes in 24 regions.** The ROM stays exactly 8192 bytes — you
 cannot shrink the file, only fill these holes (use `jmp` glue to span them).
 
 The JiffyDOS fast serial work (M1 LOAD + M2 SAVE + M3 detection + GEOS-safe
-VIC-bank preservation) currently consumes **491 bytes** across six
-holes (see "Now in use" below).
+VIC-bank preservation + `$`-dir relocate guard) currently consumes **502 bytes**
+across six holes (see "Now in use" below).
 
 ## Free regions
 
 | Range          | Size | Fill  | What was here (removed feature) / current note                   |
 | -------------- | ---- | ----- | ---------------------------------------------------------------- |
 | `$E42C-$E42F`  |    4 | `$EA` | boot-init slack (misc)                                            |
-| `$F064-$F08D`  |   42 | `$EA` | ML-monitor command loop tail (JiffyDOS `JT_GATE` + `JS_PREP` took `$F005-$F063`) |
+| `$F075-$F08D`  |   25 | `$EA` | ML-monitor command loop tail (JiffyDOS `JT_GATE` + `JS_PREP` + `DIRCHK` took `$F005-$F074`) |
 | `$F1AA-$F1AC`  |    3 | `$EA` | directory char-printer thunk                                     |
 | `$F1DF-$F20D`  |   47 | `$EA` | ML-monitor filename parser                                       |
 | `$F227-$F234`  |   14 | `$00` | ML-monitor command-char table                                    |
@@ -39,8 +39,8 @@ holes (see "Now in use" below).
 | `$FB1A-$FB2D`  |   20 | `$EA` | screen->printer hardcopy body before JiffyDOS bank helpers        |
 | `$FB61-$FB8D`  |   45 | `$EA` | screen->printer hardcopy body after JiffyDOS bank helpers         |
 | `$FB97-$FB9D`  |    7 | `$EA` | directory line-number printer                                    |
-| `$FBF0-$FBF4`  |    5 | `$EA` | slack inside the JiffyDOS fast-LOAD receive core (`JT_RX`, `$FBA6-$FC20`) |
-| `$FC21-$FC3E`  |   30 | `$EA` | tail slack after the JiffyDOS fast-LOAD receive core             |
+| `$FBEA-$FBEE`  |    5 | `$EA` | slack inside the JiffyDOS fast-LOAD receive core (`JT_RX`, `$FBA6-$FC1A`) |
+| `$FC1B-$FC3E`  |   36 | `$EA` | tail slack after the JiffyDOS fast-LOAD receive core             |
 | `$FCAA-$FCC9`  |   32 | `$EA` | ML-monitor "W" handler                                           |
 | `$FE8B-$FE8D`  |    3 | `$EA` | SPACE+RESTORE disabled NOPs (behavioural slack; reuse only deliberately) |
 | `$FECB-$FF3A`  |  112 | `$EA` | `$`-dir / F-key / CTRL+V dispatch (CTRL+D tail removed)           |
@@ -53,9 +53,9 @@ holes (see "Now in use" below).
 |   52 | `$FA37-$FA6A`  |
 |   47 | `$F1DF-$F20D`  |
 |   45 | `$FB61-$FB8D`  |
-|   42 | `$F064-$F08D`  |
 |   39 | `$F3AE-$F3D4`  |
 |   37 | `$F387-$F3AB`  |
+|   36 | `$FC1B-$FC3E`  |
 |   34 | `$F533-$F554`  |
 |   32 | `$FCAA-$FCC9`  |
 
@@ -67,13 +67,13 @@ above. Listed so the next add-on does not reclaim the used part.
 
 | Original hole         | Used | Free | Routine                                                      |
 | --------------------- | ---- | ---- | ------------------------------------------------------------ |
-| `$F005-$F08D` (137)   |   95 |   42 | `JT_GATE` + `JS_PREP` — LOAD gate + GEOS-safe send-slot prep |
+| `$F005-$F08D` (137)   |  112 |   25 | `JT_GATE` + `JS_PREP` + `DIRCHK` — LOAD gate + GEOS-safe send-slot prep + `$`-dir relocate guard |
 | `$F42B-$F494` (106)   |   87 |   19 | `JS_TX` — fast-SAVE send core (sync + 4 slots + EOI marker)  |
 | `$F9E2-$FA6A` (137)   |   85 |   52 | `JD_LOOPCHK`/`JD_DOPROBE`/`JD_CAP` — in-band detection probe |
 | `$FAC0-$FB10` (81)    |   55 |   26 | `JS_GATE` + `JS_T3`/`JS_T4` slot tables — fast-SAVE byte fork |
 | `$FB1A-$FB8D` (116)   |   51 |   65 | `JD_BANKSET`/`JS_BANKSET` — VIC-bank-preserving `$DD00` setup |
-| `$FBA6-$FC3E` (153)   |  118 |   35 | `JT_RX` — fast-LOAD receive core (cycle-counted 4×2-bit reads) |
-| **totals**            |  491 |  239 |                                                              |
+| `$FBA6-$FC3E` (153)   |  112 |   41 | `JT_RX` — fast-LOAD receive core (cycle-counted 4×2-bit reads) |
+| **totals**            |  502 |  228 |                                                              |
 
 Plus a 4-byte splice at `$ED8E` (`jmp JD_LOOPCHK`) and the `JD_CAP` capture at
 `$ED5F` (both inside the live IEC command-send loop, not in any hole).
