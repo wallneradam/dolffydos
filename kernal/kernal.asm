@@ -2130,10 +2130,7 @@ JT_GATE:
     bne JT_GSTK          ; VERIFY -> stock body (compare path)
     sei
     ldy #$00             ; Y=0 store index (kept 0 throughout)
-    lda #$3f
-    sta $dd02            ; DDRA: ATN/CLK/DATA-out outputs
-    lda #$e7
-    sta $dd00            ; assert DATA out -> drive parks at its FFB8 release-wait
+    jsr JD_BANKSET       ; DDRA out + capture VIC bank + park (DATA asserted, bank preserved)
 JT_BL:
     jsr JT_RX            ; receive one byte (cycle-critical core)
     sta ($ae),y          ; store byte to load pointer
@@ -2525,6 +2522,7 @@ JT_GSTK:
 ; indexed by the low nibble. Byte to send is in $95; preserves nothing (caller saves).
 ; =============================================================================
 JS_TX:
+    jsr JS_BANKSET       ; capture VIC bank -> JV/JSEDGE/JSPARK (preserved by every park)
     lda $95
     and #$0f
     tay                  ; Y = low nibble = JS_T3/JS_T4 index (slots 3,4)
@@ -2532,10 +2530,10 @@ JS_TX:
     lsr
     lsr
     and #$30
-    ora #$07
+    ora #$07             ; slot2 base (bank %11 residual, burst-only - kept uniform with slot1/3/4)
     sta JS_S2            ; precompute slot2 off the timing path (lsr lsr would drift it +2)
-    lda #$17
-    sta $dd00            ; park: CLK-out asserted, DATA-out released ($DD00 bit4=1)
+    lda JSPARK
+    sta $dd00            ; park: CLK-out asserted, DATA-out released, VIC bank preserved
 JS_WAIT:
     lda $dd00
     and #$80             ; DATA-in: drive asserts (=0) while busy writing a sector
@@ -2547,12 +2545,12 @@ JS_RG:
     and #$07
     cmp #$07
     bcs JS_RG
-    lda #$07
-    sta $dd00            ; SYNC EDGE: release CLK (drive edge-locks)  [T0]
-    lda $95
+    lda JSEDGE
+    sta $dd00            ; SYNC EDGE: release CLK (drive edge-locks)  [T0] (bank preserved;
+    lda $95              ;           abs-load +2cyc absorbed by JS_WAIT + raster-guard resync)
     and #$30
     ora #$07
-    sta $dd00            ; slot1 (~+11): CLK=bit4, DATA=bit5 in place
+    sta $dd00            ; slot1 (~+11): CLK=bit4, DATA=bit5 in place (bank %11 residual, burst-only)
     !fill JS_P2, $ea
     lda JS_S2
     sta $dd00            ; slot2 (~+23): precomputed (no lsr drift)
@@ -2564,12 +2562,12 @@ JS_RG:
     sta $dd00            ; slot4 (~+48): CLK=bit2, DATA=bit0
     bit $a3              ; EOI flag (bit7): last byte of this transmission?
     bpl JS_RP            ; not EOI -> straight to re-park
-    lda #$07
+    lda JSEDGE
     sta $dd00            ; EOI marker (~+60): release both lines so the drive
     !fill JS_PE, $ea     ; finalizes the filename/file (else it waits for more bytes)
 JS_RP:
-    lda #$17
-    sta $dd00            ; re-park: CLK-out asserted (drive re-arms for next byte)
+    lda JSPARK
+    sta $dd00            ; re-park: CLK-out asserted (drive re-arms for next byte), bank preserved
     rts
     !fill $f495 - *, $ea   ; pad JS_TX block to the $f495 boundary
 } else {
@@ -3347,7 +3345,36 @@ JS_T4:
     !byte $60,$ea,$ea,$ea,$ea,$ea,$ea,$ea
     !byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea
     !byte $ea,$ea,$ea,$ea,$ea
+!if JD_ENABLE {
+; VIC-bank-preserving setup helpers (placed in the freed $fb2e hardcopy hole).
+; Called once per transfer; off the cycle-critical path.
+JD_BANKSET:                  ; receive: DDRA out + capture bank + park (DATA asserted)
+    lda #$3f
+    sta $dd02            ; DDRA: ATN/CLK/DATA-out outputs
+    lda $dd00
+    and #$03
+    sta JV               ; capture caller's VIC bank (bits 0-1) BEFORE we touch the bus
+    eor #$03
+    sta JC               ; decode correction = $03 ^ JV
+    lda JV
+    ora #$c4
+    sta JEDGE            ; $c4|JV : sync edge (DATA released)
+    ora #$20
+    sta JPARK            ; $e4|JV : park / ACK (DATA asserted) = JEDGE | $20
+    sta $dd00            ; initial park: assert DATA, VIC bank preserved
+    rts
+JS_BANKSET:                  ; send: capture bank -> merged park/edge values
+    lda $dd00
+    and #$03             ; A = JV (send needs only the merged values, not JV stored)
+    ora #$04
+    sta JSEDGE           ; $04|JV : send sync edge / EOI base (both lines released)
+    ora #$10
+    sta JSPARK           ; $14|JV : send park / re-park = JSEDGE | $10
+    rts
+    !fill $fb8e - *, $ea   ; pad to the kept hardcopy tail
+} else {
     !fill $60, $ea   ; $fb2e-$fb8d BLANK screen-to-printer hardcopy
+}
     !byte $a5,$c2   ; $fb8e kept tail
     sta $ad                                  ; $fb90
     lda $c1                                  ; $fb92
@@ -3377,10 +3404,7 @@ JDISP:                          ; ACPTR fork ($ee18 jmp JDISP)
     bmi JR_ONE           ; bit7 set -> JiffyDOS device -> fast single-byte receive
     jmp $f841            ; else stock DolphinDOS parallel/serial fork
 JR_ONE:
-    lda #$3f
-    sta $dd02            ; DDRA: ATN/CLK/DATA-out outputs
-    lda #$e7
-    sta $dd00            ; assert DATA out (drive parks at FFB8)
+    jsr JD_BANKSET       ; DDRA out + capture VIC bank + park (DATA asserted, bank preserved)
     jsr JT_RX            ; A = byte, JT_TERM = terminal
     tax                  ; save byte across the terminal test
     bit JT_TERM          ; V = CLK-in, N = DATA-in
@@ -3424,8 +3448,8 @@ JT_RG:
     cmp #$07
     bcs JT_RG            ; spin while phase==7 (a badline starts next line) -> issue edge clear of it
 }
-    lda #$c7
-    sta $dd00            ; release DATA out = SYNC EDGE
+    lda JEDGE            ; $c4|JV : release DATA = SYNC EDGE, VIC bank preserved (abs-load +2cyc
+    sta $dd00            ;          absorbed: drive locks to the edge, reads follow it)
     lda #$07             ; seed A = K (CIA2 bank/RS232 low bits)
     !fill JT_R0, $ea     ; edge -> read0 alignment (tunable)
     eor $dd00            ; read0: A = pair0 in b6,7
@@ -3445,13 +3469,14 @@ JT_RG:
     eor $dd00            ; read3 -> A = full byte
     pha
     !fill JT_TG, $ea
-    lda #$e7             ; DATA-assert value (bit/sta below preserve the bit flags)
-    bit $dd00            ; terminal: V = CLK-in (b6), N = DATA-in (b7)
+    lda JPARK            ; $e4|JV : ACK value, bank preserved (abs-load +2cyc paid back by JT_TG=0
+    bit $dd00            ;          so the terminal sample keeps its read3->bit timing)
     sta $dd00            ; re-assert DATA = ACK -> drive re-parks at FFB8
     php
     pla
     sta JT_TERM          ; stash terminal P (b6=CLK-in, b7=DATA-in)
     pla                  ; A = received byte
+    eor JC               ; cancel the bank's constant offset in b0,b1 (JC=$03^JV; 0 on bank0)
     rts
     !fill $fc3f - *, $ea   ; pad JD receive block to the $fc3f boundary
 } else {
