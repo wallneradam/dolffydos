@@ -3726,11 +3726,11 @@ JT_RG:
     rol                                    ; $fe87
     rol                                    ; $fe88
     bcs $fe8e                                ; $fe89
-    jmp $fcef                                ; $fe8b
+    !byte $ea,$ea,$ea   ; $fe8b-$fe8d SPACE+RESTORE disabled
     rol                                    ; $fe8e
     rol                                    ; $fe8f
     bcs $fea3                                ; $fe90
-    jsr $fda3                                ; $fe92
+    !byte $4c,$ef,$fc   ; $fe92-$fe94 CTRL+RESTORE KERNAL reset
     jsr $e518                                ; $fe95
     tsx                                      ; $fe98
     inx                                      ; $fe99

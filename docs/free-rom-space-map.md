@@ -1,39 +1,44 @@
 # Dolffy DOS — usable free ROM space (current map)
 
 Live map of the overwritable holes in the **current** `kernal/rom/dolffy.rom`
-(MD5 `25cd89d3`), origin `$E000`, fixed 8192 bytes. These are the bytes the
-DolphinDOS-2 feature removal (the "bake") freed — available for JiffyDOS, the
-border clock, the shift-lock indicator, and other Ultimate add-ons.
+(MD5 `0dfaf181`), origin `$E000`, fixed 8192 bytes. These are the bytes the
+DolphinDOS-2 feature removal (the "bake") freed — available for further Ultimate
+add-ons (border clock, shift-lock indicator, etc.).
 
 `file_offset = addr - $E000`. A region counts as free only if it is `$EA`/`$00`
 fill that diverges from the pristine DolphinDOS-2 base (`kernal/reference/dolphindos2-faithful-b3b0.rom`).
-Regenerate this map after any bake change; see the one-liner at the bottom.
+Regenerate this map after any bake or feature change; see the one-liner at the bottom.
 
-**Total free: 1122 bytes in 20 regions.** The ROM stays exactly 8192 bytes — you
+**Total free: 715 bytes in 22 regions.** The ROM stays exactly 8192 bytes — you
 cannot shrink the file, only fill these holes (use `jmp` glue to span them).
+
+The JiffyDOS fast serial work (M1 LOAD + M2 SAVE + M3 detection) consumed **407
+bytes** of the original 1122 across five holes (see "Now in use" below).
 
 ## Free regions
 
-| Range          | Size | Fill  | What was here (removed feature)                                   |
+| Range          | Size | Fill  | What was here (removed feature) / current note                   |
 | -------------- | ---- | ----- | ---------------------------------------------------------------- |
 | `$E42C-$E42F`  |    4 | `$EA` | boot-init slack (misc)                                            |
-| `$F005-$F08D`  |  137 | `$EA` | ML-monitor prologue + command loop                               |
+| `$F039-$F08D`  |   85 | `$EA` | ML-monitor command loop tail (JiffyDOS `JT_GATE` took `$F005-$F038`) |
 | `$F1AA-$F1AC`  |    3 | `$EA` | directory char-printer thunk                                     |
 | `$F1DF-$F20D`  |   47 | `$EA` | ML-monitor filename parser                                       |
 | `$F227-$F234`  |   14 | `$00` | ML-monitor command-char table                                    |
 | `$F26C-$F278`  |   13 | `$EA` | ML-monitor byte-store helper (was embedded in CKOUT)             |
 | `$F387-$F3AB`  |   37 | `$00` | F-key macro strings, part 1                                      |
-| `$F3AE-$F3D4`  |   39 | mixed | F-key macro strings part 2 + F7/UCI-menu hook                    |
-| `$F42B-$F494`  |  106 | `$EA` | ML-monitor handlers tail (`$F409-$F42A` = Ultimate UCI screen patch, IN USE) |
+| `$F3AE-$F3D4`  |   39 | `$00` | F-key macro strings part 2 + F7/UCI-menu hook                    |
+| `$F483-$F487`  |    5 | `$EA` | slack inside the JiffyDOS fast-SAVE core block (`JS_TX`, `$F42B-$F482`) |
+| `$F48E-$F494`  |    7 | `$EA` | slack inside the JiffyDOS fast-SAVE core block (tail to `$F495`)  |
 | `$F533-$F554`  |   34 | `$EA` | F-key dispatch                                                   |
 | `$F72C-$F735`  |   10 | `$EA` | ML-monitor helper                                                |
 | `$F8AF-$F8CA`  |   28 | `$00` | ML-monitor handler-address table (14 pairs)                      |
-| `$F9E2-$FA6A`  |  137 | `$EA` | directory display renderer + continue-dump                       |
+| `$FA37-$FA6A`  |   52 | `$EA` | tail slack after the JiffyDOS detection probe (`JD_LOOPCHK`/`JD_CAP`, `$F9E2-$FA36`) |
 | `$FAAE-$FAB9`  |   12 | `$EA` | CTRL+A key-repeat toggle (removed)                               |
-| `$FAC0-$FB10`  |   81 | mixed | directory block-count printer + hardcopy data table              |
+| `$FAF7-$FB10`  |   26 | mixed | tail slack after the JiffyDOS fast-SAVE gate + slot tables (`JS_GATE`/`JS_T3`/`JS_T4`, `$FAC0-$FAF6`) |
 | `$FB1A-$FB8D`  |  116 | `$EA` | screen->printer hardcopy body                                    |
 | `$FB97-$FB9D`  |    7 | `$EA` | directory line-number printer                                    |
-| `$FBA6-$FC3E`  |  153 | `$EA` | `LOAD"$"` / directory read+list engine                           |
+| `$FBF6-$FBFA`  |    5 | `$EA` | slack inside the JiffyDOS fast-LOAD receive core (`JT_RX`, `$FBA6-$FC23`) |
+| `$FC24-$FC3E`  |   27 | `$EA` | tail slack after the JiffyDOS fast-LOAD receive core             |
 | `$FCAA-$FCC9`  |   32 | `$EA` | ML-monitor "W" handler                                           |
 | `$FECB-$FF3A`  |  112 | `$EA` | `$`-dir / F-key / CTRL+V dispatch (CTRL+D tail removed)           |
 
@@ -41,14 +46,33 @@ cannot shrink the file, only fill these holes (use `jmp` glue to span them).
 
 | Size | Range          |
 | ---- | -------------- |
-|  153 | `$FBA6-$FC3E`  |
-|  137 | `$F005-$F08D`  |
-|  137 | `$F9E2-$FA6A`  |
 |  116 | `$FB1A-$FB8D`  |
 |  112 | `$FECB-$FF3A`  |
-|  106 | `$F42B-$F494`  |
-|   81 | `$FAC0-$FB10`  |
+|   85 | `$F039-$F08D`  |
+|   52 | `$FA37-$FA6A`  |
 |   47 | `$F1DF-$F20D`  |
+|   39 | `$F3AE-$F3D4`  |
+|   37 | `$F387-$F3AB`  |
+|   34 | `$F533-$F554`  |
+|   32 | `$FCAA-$FCC9`  |
+
+## Now in use — JiffyDOS fast-serial code (do NOT overwrite)
+
+Five pre-JiffyDOS holes now hold live code (gated by `JD_ENABLE`). Each is only
+partly filled; the leftover bytes are the `$Fxxx` slack rows in the free table
+above. Listed so the next add-on does not reclaim the used part.
+
+| Original hole         | Used | Free | Routine                                                      |
+| --------------------- | ---- | ---- | ------------------------------------------------------------ |
+| `$F005-$F08D` (137)   |   52 |   85 | `JT_GATE` — fast-LOAD body gate (jiffy vs stock/parallel)    |
+| `$F42B-$F494` (106)   |   94 |   12 | `JS_TX` — fast-SAVE send core (sync + 4 slots + EOI marker)  |
+| `$F9E2-$FA6A` (137)   |   85 |   52 | `JD_LOOPCHK`/`JD_DOPROBE`/`JD_CAP` — in-band detection probe |
+| `$FAC0-$FB10` (81)    |   55 |   26 | `JS_GATE` + `JS_T3`/`JS_T4` slot tables — fast-SAVE byte fork |
+| `$FBA6-$FC3E` (153)   |  121 |   32 | `JT_RX` — fast-LOAD receive core (cycle-counted 4×2-bit reads) |
+| **totals**            |  407 |  207 |                                                              |
+
+Plus a 4-byte splice at `$ED8E` (`jmp JD_LOOPCHK`) and the `JD_CAP` capture at
+`$ED5F` (both inside the live IEC command-send loop, not in any hole).
 
 ## Hazards — live bytes inside/adjacent to the holes (do NOT overwrite)
 
@@ -56,9 +80,9 @@ cannot shrink the file, only fill these holes (use `jmp` glue to span them).
 | --------------- | ------------------------------------------------------------------- |
 | `$F3AC-$F3AD`   | `clc`/`rts` island between the two F-key holes; 5 OPEN/send-name branches target it |
 | `$F409-$F42A`   | Ultimate UCI ident + on-screen `BASIC V2` -> `ULTIMATE` patch (live add-on) |
-| `$F495-$F4BB`   | LOAD (live; directly after the `$F42B-$F494` hole)                  |
+| `$F495-$F4BB`   | LOAD (live; directly after the `JS_TX` block that ends at `$F494`)  |
 | `$F196-$F1A6`   | serial-send constant table (read by the kept serial fallback)       |
-| `$FB11-$FB19`   | SCNKEY stub (`sta $028c`/`sty $c5`/`lda $028c`/`rts`); hole starts at `$FB1A` |
+| `$FB11-$FB19`   | SCNKEY stub (`sta $028c`/`sty $c5`/`lda $028c`/`rts`); hole resumes at `$FB1A` |
 | `$FECA`         | `$`-dir stub `rts` (`$60`); hole starts at `$FECB`                   |
 | `$FF3B+`        | parallel-handshake serial wait (`jsr $ff3b` from `$EFE0/$EFE9/$F5A1`) and the IRQ/BRK entry `$FF48` |
 
@@ -73,14 +97,15 @@ python3 - <<'PY'
 ORIG=0xE000
 base=open('kernal/reference/dolphindos2-faithful-b3b0.rom','rb').read()
 dol =open('kernal/rom/dolffy.rom','rb').read()
-i=0
+i=0; total=0; n=0
 while i<len(dol):
     if dol[i] in (0xEA,0x00):
         j=i
         while j<len(dol) and dol[j] in (0xEA,0x00): j+=1
         if any(dol[k]!=base[k] for k in range(i,j)) and j-i>=3:
-            print(f"${ORIG+i:04x}-${ORIG+j-1:04x}  {j-i}")
+            print(f"${ORIG+i:04x}-${ORIG+j-1:04x}  {j-i}"); total+=j-i; n+=1
         i=j
     else: i+=1
+print(f"total free: {total} bytes in {n} regions")
 PY
 ```
