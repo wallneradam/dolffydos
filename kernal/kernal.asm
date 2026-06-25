@@ -35,6 +35,7 @@
 ; 1 = JiffyDOS path active (TALK-gated detection + fast serial). Defined here
 ; because it gates code before its original site (see ~$ed5f / $ed8e splices).
 JD_ENABLE = 1
+!ifndef ULTIMATE_BUILD { ULTIMATE_BUILD = 1 } ; 1 = static "ULTIMATE" boot banner, 0 = "STANDARD"
 !if JD_ENABLE { !source "jd_cal.inc" }   ; JiffyDOS fast-LOAD receiver calibration (JT_*)
 
     sta $56                                  ; $e000
@@ -553,11 +554,9 @@ JD_ENABLE = 1
     lda $2b                                  ; $e422
     ldy $2c                                  ; $e424
     jsr $a408                                ; $e426
-    jsr $f409                                ; $e429 print banner, patch if Ultimate
-    nop                                      ; $e42c
-    nop                                      ; $e42d
-    nop                                      ; $e42e
-    nop                                      ; $e42f
+    lda #$73                                 ; $e429 print startup banner
+    ldy #$e4                                 ; $e42b
+    jsr $ab1e                                ; $e42d
     lda $37                                  ; $e430
     sec                                      ; $e432
     sbc $2b                                  ; $e433
@@ -586,7 +585,11 @@ JD_ENABLE = 1
     !text " BASIC BYTES FREE"                ; $e460-$e470
     !byte $0d,$00                            ; $e471-$e472
     !byte $93,$0d                            ; $e473-$e474 clear screen + return
-    !text "    **** COMMODORE 64 BASIC V2 ****" ; $e475-$e497
+!if ULTIMATE_BUILD {
+    !text "    **** COMMODORE 64 ULTIMATE ****" ; $e475-$e497
+} else {
+    !text "    **** COMMODORE 64 STANDARD ****" ; $e475-$e497
+}
     !byte $0d,$0d                            ; $e498-$e499
     !text " DOLFFY DOS 1.0  "                ; $e49a-$e4aa
     !byte $00                                ; $e4ab
@@ -2284,14 +2287,7 @@ DC_FILE:
     tya                                      ; $f180
     jsr $eddd                                ; $f181
     jmp $edfe                                ; $f184
-    ldy #$00                                 ; $f187
-    jsr $fb9e                                ; $f189
-    lda ($f9),y                              ; $f18c
-    jsr $f898                                ; $f18e
-    iny                                      ; $f191
-    dex                                      ; $f192
-    bne $f189                                ; $f193
-    rts                                      ; $f195
+    !fill $f196 - *, $ea
     brk                                      ; $f196
     brk                                      ; $f197
     brk                                      ; $f198
@@ -2534,19 +2530,7 @@ DC_FILE:
     cpy $b7                                  ; $f402
     bne $f3fc                                ; $f404
     jmp $f654                                ; $f406
-    lda #$73                                 ; $f409 normal startup banner
-    ldy #$e4                                 ; $f40b
-    jsr $ab1e                                ; $f40d
-    lda $df1d                                ; $f410 UCI ident register
-    cmp #$c9                                 ; $f413
-    bne $f422                                ; $f415
-    ldx #$07                                 ; $f417
-    lda $f423,x                              ; $f419
-    sta $043e,x                              ; $f41c screen "BASIC V2" position
-    dex                                      ; $f41f
-    bpl $f419                                ; $f420
-    rts                                      ; $f422
-    !scr "ultimate"                         ; $f423-$f42a screen-code "ULTIMATE"
+    !fill $f42b - *, $ea
 !if JD_ENABLE {
 ; =============================================================================
 ; JS_TX - JiffyDOS fast SEND core (one byte to the listening drive), in $f42b hole.
@@ -2811,14 +2795,7 @@ JS_RP:
     lda #$08                                 ; $f65c
     sta $ba                                  ; $f65e
     !byte $d0,$98                            ; $6ce4 (bne $6c7d)
-    jsr $f05e                                ; $f662
-    ldy $022e                                ; $f665
-    ldx $022d                                ; $f668
-    lda $022b                                ; $f66b
-    pha                                      ; $f66e
-    lda $022c                                ; $f66f
-    plp                                      ; $f672
-    jmp ($00f9)                              ; $f673
+    !fill $f676 - *, $ea
     lda #$00                                 ; $f676
     sta $90                                  ; $f678
     lda $ba                                  ; $f67a

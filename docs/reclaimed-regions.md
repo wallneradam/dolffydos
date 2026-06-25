@@ -17,7 +17,8 @@ The complete, pristine DolphinDOS-2 source and ROM are preserved in the repo:
 To recover any original bytes: `file_offset = addr - $E000` into the base ROM, or
 `da65`/`dis.py` it. `da65 … dolphindos2-faithful-b3b0.rom` gives full disassembly.
 
-The current `kernal/rom/dolffy.rom` is MD5 `25cd89d3`. Free holes the bake opened
+The current Ultimate `kernal/rom/dolffy.rom` is MD5 `e0733d7b`. The plain
+variant `kernal/rom/dolffy-plain.rom` is MD5 `dee41ed8`. Free holes the bake opened
 are mapped in `docs/free-rom-space-map.md`. The original removal plan (historical,
 written pre-application, partly superseded) is `docs/free-rom-space-plan.md`.
 
@@ -68,17 +69,17 @@ wrapper. No cut/paste buffer code is present.
 
 | Feature                         | Original range(s)                                   | What it did                                          | Current state          |
 | ------------------------------- | --------------------------------------------------- | ---------------------------------------------------- | ---------------------- |
-| Built-in ML monitor             | `$F005-$F08D`, `$F1DF-$F20D`, `$F227-$F234`, `$F26C-$F278`, `$F409-$F494`†, `$F72C-$F735`, `$F8AF-$F8CA`, `$FCAA-$FCC9` | machine-language monitor (R/;/L/V/S/@/W, hex parse, dump) | blanked `$EA`/`$00`    |
+| Built-in ML monitor             | `$F005-$F08D`, `$F1DF-$F20D`, `$F227-$F234`, `$F26C-$F278`, `$F409-$F494`†, `$F72C-$F735`, `$F8AF-$F8CA`, `$FCAA-$FCC9` | machine-language monitor (R/;/L/V/S/@/W, hex parse, dump) | blanked `$EA`/`$00` or reused for JiffyDOS |
 | F-key macros + dispatch         | `$F387-$F3D4`, `$F533-$F554`, `$E5E7` (rewritten)   | programmable function-key strings + dispatch         | blanked; editor hook rewritten to `jsr $e5b4` |
 | Fast directory display          | `$F1AA-$F1AC`, `$F9E2-$FA6A`, `$FAC0-$FB01`, `$FB97-$FB9D`, `$FBA6-$FC3E` | `LOAD"$"` read + on-screen list renderer             | blanked `$EA`          |
 | Screen → printer hardcopy       | `$FB11` (stub), `$FB2E-$FB8D`, `$FB02-$FB10`        | dump screen to printer (OPEN 4)                      | detector stubbed, body blanked |
 | BASIC `@`/`&`/`*` wedge         | `$E115` & `$E38E` (hooks), `$F775-$F816` body       | `@`/`&`/`*` commands at the READY prompt             | repurposed for `@$` / `@$9` only                         |
 
-† `$F409-$F42A` of the monitor-handler hole has since been re-used for the
-Ultimate UCI boot-banner patch: `$E429` calls `$F409`, which prints the original
-`$E473` startup banner, reads UCI ident `$DF1D`, and only when it returns `$C9`
-writes `!scr "ultimate"` over the on-screen `BASIC V2` at `$043E-$0445`.
-Only `$F42B-$F494` is free.
+† `$F409-$F42A` is free again. The old runtime UCI boot-banner patch was replaced
+by a static build variant: `make ultimate` builds `kernal/rom/dolffy.rom` with
+`ULTIMATE` in the boot banner text, while `make plain` builds
+`kernal/rom/dolffy-plain.rom` with `STANDARD`. `$F42B-$F494` is partly reused by
+the JiffyDOS fast-SAVE core.
 
 The current `@` wedge is not the original DolphinDOS command set. `$E38E`
 dispatches to a new non-destructive directory streamer at `$F775-$F816`;

@@ -1,7 +1,7 @@
 # Dolffy DOS — usable free ROM space (current map)
 
 Live map of the overwritable holes in the **current** `kernal/rom/dolffy.rom`
-(MD5 `7049c5ee`), origin `$E000`, fixed 8192 bytes. These are the bytes the
+(MD5 `e0733d7b` for the Ultimate build), origin `$E000`, fixed 8192 bytes. These are the bytes the
 DolphinDOS-2 feature removal (the "bake") freed — available for further Ultimate
 add-ons (border clock, shift-lock indicator, etc.).
 
@@ -9,7 +9,7 @@ add-ons (border clock, shift-lock indicator, etc.).
 fill that diverges from the pristine DolphinDOS-2 base (`kernal/reference/dolphindos2-faithful-b3b0.rom`).
 Regenerate this map after any bake or feature change; see the one-liner at the bottom.
 
-**Total free: 615 bytes in 24 regions.** The ROM stays exactly 8192 bytes — you
+**Total free: 680 bytes in 26 regions.** The ROM stays exactly 8192 bytes — you
 cannot shrink the file, only fill these holes (use `jmp` glue to span them).
 
 The JiffyDOS fast serial work (M1 LOAD + M2 SAVE + M3 detection + GEOS-safe
@@ -20,17 +20,19 @@ across six holes (see "Now in use" below).
 
 | Range          | Size | Fill  | What was here (removed feature) / current note                   |
 | -------------- | ---- | ----- | ---------------------------------------------------------------- |
-| `$E42C-$E42F`  |    4 | `$EA` | boot-init slack (misc)                                            |
 | `$F075-$F08D`  |   25 | `$EA` | ML-monitor command loop tail (JiffyDOS `JT_GATE` + `JS_PREP` + `DIRCHK` took `$F005-$F074`) |
+| `$F187-$F195`  |   15 | `$EA` | helper tail after the kept Dolphin parallel `X` sender           |
 | `$F1AA-$F1AC`  |    3 | `$EA` | directory char-printer thunk                                     |
 | `$F1DF-$F20D`  |   47 | `$EA` | ML-monitor filename parser                                       |
 | `$F227-$F234`  |   14 | `$00` | ML-monitor command-char table                                    |
 | `$F26C-$F278`  |   13 | `$EA` | ML-monitor byte-store helper (was embedded in CKOUT)             |
 | `$F387-$F3AB`  |   37 | `$00` | F-key macro strings, part 1                                      |
 | `$F3AE-$F3D4`  |   39 | `$00` | F-key macro strings part 2 + F7/UCI-menu hook                    |
+| `$F409-$F42A`  |   34 | `$EA` | old runtime Ultimate banner patch (now a static build variant)   |
 | `$F47B-$F47F`  |    5 | `$EA` | slack inside the JiffyDOS fast-SAVE core block (`JS_TX`, `$F42B-$F47A`) |
 | `$F487-$F494`  |   14 | `$EA` | slack inside the JiffyDOS fast-SAVE core block (tail to `$F495`)  |
 | `$F533-$F554`  |   34 | `$EA` | F-key dispatch                                                   |
+| `$F662-$F675`  |   20 | `$EA` | monitor tail after device-1/2 SAVE redirect                      |
 | `$F72C-$F735`  |   10 | `$EA` | ML-monitor helper                                                |
 | `$F813-$F816`  |    4 | `$EA` | slack after `@$` / `@$9` directory streamer                      |
 | `$F8AF-$F8CA`  |   28 | `$00` | ML-monitor handler-address table (14 pairs)                      |
@@ -56,6 +58,7 @@ across six holes (see "Now in use" below).
 |   39 | `$F3AE-$F3D4`  |
 |   37 | `$F387-$F3AB`  |
 |   36 | `$FC1B-$FC3E`  |
+|   34 | `$F409-$F42A`  |
 |   34 | `$F533-$F554`  |
 |   32 | `$FCAA-$FCC9`  |
 
@@ -94,17 +97,18 @@ quoted-load helper paths, and incidental `@$8` spelling were not restored.
 
 | Keep            | Why                                                                 |
 | --------------- | ------------------------------------------------------------------- |
+| `$F178-$F184`   | Dolphin parallel `X` command sender; required before parallel LOAD/SAVE enters burst mode |
+| `$F676-$F68E`   | Serial command-open helper called by `$F178` and SAVE paths         |
 | `$F3AC-$F3AD`   | `clc`/`rts` island between the two F-key holes; 5 OPEN/send-name branches target it |
-| `$F409-$F42A`   | Ultimate UCI ident + on-screen `BASIC V2` -> `ULTIMATE` patch (live add-on) |
 | `$F495-$F4BB`   | LOAD (live; directly after the `JS_TX` block that ends at `$F494`)  |
-| `$F196-$F1A6`   | serial-send constant table (read by the kept serial fallback)       |
+| `$F196-$F1A6`   | serial-send constant table (read by the kept serial fallback); do not merge the `$F187` hole across it |
 | `$FB11-$FB19`   | SCNKEY stub (`sta $028c`/`sty $c5`/`lda $028c`/`rts`); hole resumes at `$FB1A` |
 | `$FECA`         | `$`-dir stub `rts` (`$60`); hole starts at `$FECB`                   |
 | `$FF3B+`        | parallel-handshake serial wait (`jsr $ff3b` from `$EFE0/$EFE9/$F5A1`) and the IRQ/BRK entry `$FF48` |
 
-`$F409-$F42A` does not contain a duplicate startup banner. It prints the original
-`$E473` banner, then on UCI ident `$DF1D == $C9` writes `!scr "ultimate"` to
-screen RAM `$043E-$0445`.
+The boot banner is now a static build variant: `make ultimate` builds
+`kernal/rom/dolffy.rom` with `ULTIMATE` in the banner text, while `make plain`
+builds `kernal/rom/dolffy-plain.rom` with `STANDARD`.
 
 ## Regenerate
 
@@ -113,11 +117,14 @@ python3 - <<'PY'
 ORIG=0xE000
 base=open('kernal/reference/dolphindos2-faithful-b3b0.rom','rb').read()
 dol =open('kernal/rom/dolffy.rom','rb').read()
+keep=[(0xF196,0xF1A6)]
+def is_keep(addr):
+    return any(a <= addr <= b for a,b in keep)
 i=0; total=0; n=0
 while i<len(dol):
-    if dol[i] in (0xEA,0x00):
+    if dol[i] in (0xEA,0x00) and not is_keep(ORIG+i):
         j=i
-        while j<len(dol) and dol[j] in (0xEA,0x00): j+=1
+        while j<len(dol) and dol[j] in (0xEA,0x00) and not is_keep(ORIG+j): j+=1
         if any(dol[k]!=base[k] for k in range(i,j)) and j-i>=3:
             print(f"${ORIG+i:04x}-${ORIG+j-1:04x}  {j-i}"); total+=j-i; n+=1
         i=j
