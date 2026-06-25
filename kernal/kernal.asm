@@ -2148,6 +2148,29 @@ JT_NC:
     jmp $f528            ; stock LOAD done path (UNTLK / wrap-up)
 JT_GSTK:
     jmp $f4f3            ; original stock LOAD body (ST-clear + serial/parallel)
+JS_PREP:
+    lda $95
+    and #$0f
+    tay                  ; Y = low nibble = JS_T3/JS_T4 index (slots 3,4)
+    lda $95
+    and #$30
+    ora JSEDGE
+    sta JS_S1            ; slot1: CLK=bit4, DATA=bit5, bank preserved
+    lda $95
+    lsr
+    lsr
+    and #$30
+    ora JSEDGE
+    sta JS_S2            ; slot2: CLK=bit6, DATA=bit7, bank preserved
+    lda JS_T3,y
+    and #$30
+    ora JSEDGE
+    sta JS_S3            ; slot3: CLK=bit3, DATA=bit1, bank preserved
+    lda JS_T4,y
+    and #$30
+    ora JSEDGE
+    sta JS_S4            ; slot4: CLK=bit2, DATA=bit0, bank preserved
+    rts
     !fill $f08e - *, $ea
 } else {
     !fill $89, $ea   ; $f005-$f08d BLANK ML-monitor prologue + command loop
@@ -2518,20 +2541,13 @@ JT_GSTK:
 ; times presenting the bit-pairs the drive samples. Slot map (measured, doc 08):
 ;   slot1 CLK=bit4 DATA=bit5  slot2 CLK=bit6 DATA=bit7
 ;   slot3 CLK=bit3 DATA=bit1  slot4 CLK=bit2 DATA=bit0   (assert flag = the byte bit).
-; slot1/slot2 are computed inline (in-place mask); slot3/slot4 come from JS_T3/JS_T4
-; indexed by the low nibble. Byte to send is in $95; preserves nothing (caller saves).
+; slot values are precomputed with the current VIC bank bits merged in, so every $DD00
+; write preserves GEOS/bitmap VIC banking. Byte to send is in $95; preserves nothing
+; (caller saves).
 ; =============================================================================
 JS_TX:
     jsr JS_BANKSET       ; capture VIC bank -> JV/JSEDGE/JSPARK (preserved by every park)
-    lda $95
-    and #$0f
-    tay                  ; Y = low nibble = JS_T3/JS_T4 index (slots 3,4)
-    lda $95
-    lsr
-    lsr
-    and #$30
-    ora #$07             ; slot2 base (bank %11 residual, burst-only - kept uniform with slot1/3/4)
-    sta JS_S2            ; precompute slot2 off the timing path (lsr lsr would drift it +2)
+    jsr JS_PREP          ; precompute all four slot values off the timing path
     lda JSPARK
     sta $dd00            ; park: CLK-out asserted, DATA-out released, VIC bank preserved
 JS_WAIT:
@@ -2547,19 +2563,18 @@ JS_RG:
     bcs JS_RG
     lda JSEDGE
     sta $dd00            ; SYNC EDGE: release CLK (drive edge-locks)  [T0] (bank preserved;
-    lda $95              ;           abs-load +2cyc absorbed by JS_WAIT + raster-guard resync)
-    and #$30
-    ora #$07
-    sta $dd00            ; slot1 (~+11): CLK=bit4, DATA=bit5 in place (bank %11 residual, burst-only)
+    bit $a3              ; 3-cycle pad: keeps slot1 at the measured cadence
+    lda JS_S1
+    sta $dd00            ; slot1 (~+11): CLK=bit4, DATA=bit5, bank preserved
     !fill JS_P2, $ea
     lda JS_S2
-    sta $dd00            ; slot2 (~+23): precomputed (no lsr drift)
+    sta $dd00            ; slot2 (~+23): precomputed (no lsr drift), bank preserved
     !fill JS_P3, $ea
-    lda JS_T3,y
-    sta $dd00            ; slot3 (~+35): CLK=bit3, DATA=bit1
+    lda JS_S3
+    sta $dd00            ; slot3 (~+35): CLK=bit3, DATA=bit1, bank preserved
     !fill JS_P4, $ea
-    lda JS_T4,y
-    sta $dd00            ; slot4 (~+48): CLK=bit2, DATA=bit0
+    lda JS_S4
+    sta $dd00            ; slot4 (~+48): CLK=bit2, DATA=bit0, bank preserved
     bit $a3              ; EOI flag (bit7): last byte of this transmission?
     bpl JS_RP            ; not EOI -> straight to re-park
     lda JSEDGE

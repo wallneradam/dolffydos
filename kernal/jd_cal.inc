@@ -9,8 +9,11 @@ JV     = $0336   ; captured VIC bank = $DD00 & $03 (shared by recv + send)
 JC     = $0337   ; receive decode correction = $03 ^ JV (XOR'd into each decoded byte)
 JPARK  = $0338   ; receive park/ACK value  = $e4 | JV (DATA asserted, bank preserved)
 JEDGE  = $0339   ; receive sync-edge value = $c4 | JV (DATA released, bank preserved)
-JSEDGE = $033a   ; send sync-edge / EOI / slot2-OR base = $04 | JV (both lines released base)
+JSEDGE = $033a   ; send sync-edge / EOI / slot-OR base = $04 | JV (both lines released base)
 JSPARK = $033b   ; send park/re-park value = $14 | JV (CLK asserted, bank preserved)
+JS_S1  = $033c   ; scratch: slot1 value precomputed before the burst
+JS_S3  = $033d   ; scratch: slot3 value precomputed before the burst
+JS_S4  = $033e   ; scratch: slot4 value precomputed before the burst
 JT_USESTAB = 1   ; 1 = CLK-in stability confirm loop (anti-jitter), 0 = single CLK check
 JT_STAB = 4      ; CLK-in stability confirm count (kills sync-phase jitter)
 JT_R0 = 5        ; edge->read0 ~+16 (only working steady-state offset; window is razor-thin)
@@ -22,7 +25,8 @@ JT_BLANK = 0     ; 0 = screen ON + raster guard (final), 1 = blank scaffold (deb
 ; --- fast SAVE (send, JS_*) calibration ---
 ; The send core JS_TX issues one CLK-release sync edge per byte, then writes $DD00
 ; four times presenting bit-pairs (slot1=+11/slot2=+24/slot3=+35/slot4=+48 from the
-; edge). slot1/slot2 land naturally; slot3/slot4/park are padded (BYTES of $ea, 2cyc).
+; edge). Slot values are precomputed with the current VIC bank preserved; slot3/slot4/park
+; are padded (BYTES of $ea, 2cyc).
 JS_S2 = $0335    ; scratch: slot2 value precomputed before the burst (avoids lsr drift)
 JS_P2 = 2        ; slot1->slot2 pad (slot2 from scratch -> ~+23)
 JS_P3 = 2        ; slot2->slot3 pad (~+35)
