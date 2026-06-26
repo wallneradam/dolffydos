@@ -45,7 +45,6 @@ CLK_TOPA   = CLK_TOPL-2
 CLK_BGDLY  = 6
 CLK_TOPDLY = 5
 CLK_BUSYN  = 255
-CLK_SYSN   = 20
 CLK_SECFR  = 50
 CLK_MODE   = $cff3
 CLK_BUSY   = $cff7
@@ -600,7 +599,13 @@ CLK_DSH    = 6
 } else {
     jmp $a644                                ; $e444
 }
-    !byte $8b,$e3,$83,$a4,$7c,$a5,$1a,$a7    ; BASIC RAM vectors $0300-$0307
+    !byte $8b,$e3                            ; $0300 IERROR -> $e38b
+!if CLOCK_ENABLE {
+    !word CLK_MAIN                           ; $0302 IMAIN: release BASIC-run lock
+} else {
+    !byte $83,$a4                            ; $0302 IMAIN -> $a483
+}
+    !byte $7c,$a5,$1a,$a7                    ; $0304-$0307 ICRNCH/IQPLOP
 !if CLOCK_ENABLE {
     !word CLK_GONE                           ; $0308 IGONE: wait out clock bank window
 } else {
@@ -2884,8 +2889,12 @@ CLK_DOUT:
 CLK_DOUT1:
     jmp CLK_ENTER
 CLK_GONE:
-    jsr CLK_SYSENTER
-    jmp $a7e4
+    jmp CLK_SYSENTER
+CLK_MAIN:
+    lda #$00
+    sta CLK_MODE
+    jsr CLK_RASTER
+    jmp $a483
     !fill $f555 - *, $ea
 } else {
     !fill $22, $ea   ; $f533-$f554 BLANK F-key dispatch (E5E7 now bypasses)
@@ -3128,9 +3137,9 @@ CLK_BOT2:
 !if CLOCK_ENABLE {
 CLK_SYSENTER:
     jsr CLK_PREIO
-    lda #CLK_SYSN
-    sta CLK_BUSY
-    rts
+    sec
+    ror CLK_MODE
+    jmp $a7e4
     !fill $f736 - *, $ea
 } else {
     !fill $a, $ea   ; $f72c-$f735 BLANK monitor helper (dead island, callers blanked)
@@ -4225,6 +4234,7 @@ CLK_ECIA:
 CLK_IRQ:
     lda CLK_MODE
     beq CLK_CHKVIC
+    bmi CLK_CIA
     dec CLK_BUSY
     bne CLK_CIA
     lsr
