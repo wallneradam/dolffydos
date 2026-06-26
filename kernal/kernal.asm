@@ -35,8 +35,28 @@
 ; 1 = JiffyDOS path active (TALK-gated detection + fast serial). Defined here
 ; because it gates code before its original site (see ~$ed5f / $ed8e splices).
 JD_ENABLE = 1
-!ifndef ULTIMATE_BUILD { ULTIMATE_BUILD = 1 } ; 1 = static "ULTIMATE" boot banner, 0 = "STANDARD"
+!ifndef ULTIMATE_BUILD { ULTIMATE_BUILD = 1 } ; 1 = Ultimate add-on build, 0 = plain/stable build
+CLOCK_ENABLE = ULTIMATE_BUILD
 !if JD_ENABLE { !source "jd_cal.inc" }   ; JiffyDOS fast-LOAD receiver calibration (JT_*)
+!if CLOCK_ENABLE {
+CLK_BOTL   = 246
+CLK_TOPL   = 50
+CLK_TOPA   = CLK_TOPL-2
+CLK_BGDLY  = 6
+CLK_TOPDLY = 5
+CLK_BUSYN  = 255
+CLK_SYSN   = 20
+CLK_SECFR  = 50
+CLK_MODE   = $cff3
+CLK_BUSY   = $cff7
+CLK_ACTIVE = $cff4
+CLK_TICK   = $cff5
+CLK_SAVEBG = $cff6
+CLK_BUF    = $cfe0
+CLK_TBASE  = $c380
+CLK_MBASE  = $c3c0
+CLK_DSH    = 6
+}
 
     sta $56                                  ; $e000
 
@@ -554,9 +574,17 @@ JD_ENABLE = 1
     lda $2b                                  ; $e422
     ldy $2c                                  ; $e424
     jsr $a408                                ; $e426
+!if ULTIMATE_BUILD {
     lda #$73                                 ; $e429 print startup banner
     ldy #$e4                                 ; $e42b
     jsr $ab1e                                ; $e42d
+} else {
+    jsr BANNER_PRINT                         ; $e429 print banner, patch if Ultimate
+    nop                                      ; $e42c
+    nop                                      ; $e42d
+    nop                                      ; $e42e
+    nop                                      ; $e42f
+}
     lda $37                                  ; $e430
     sec                                      ; $e432
     sbc $2b                                  ; $e433
@@ -567,15 +595,18 @@ JD_ENABLE = 1
     lda #$60                                 ; $e43d
     ldy #$e4                                 ; $e43f
     jsr $ab1e                                ; $e441
+!if CLOCK_ENABLE {
+    jmp CLK_BOOTDONE                         ; $e444
+} else {
     jmp $a644                                ; $e444
-    !byte $8b                                ; $5acb (undefined opcode)
-    !byte $e3                                ; $5acc (undefined opcode)
-    !byte $83                                ; $5acd (undefined opcode)
-    ldy $7c                                  ; $e44a
-    lda $1a                                  ; $e44c
-    !byte $a7                                ; $5ad2 (undefined opcode)
-    cpx $a7                                  ; $e44f
-    stx $ae                                  ; $e451
+}
+    !byte $8b,$e3,$83,$a4,$7c,$a5,$1a,$a7    ; BASIC RAM vectors $0300-$0307
+!if CLOCK_ENABLE {
+    !word CLK_GONE                           ; $0308 IGONE: wait out clock bank window
+} else {
+    !byte $e4,$a7                            ; stock IGONE -> $a7e4
+}
+    !byte $86,$ae                            ; $030a IEVAL -> $ae86
     ldx #$0b                                 ; $e453
     lda $e447,x                              ; $e455
     sta $0300,x                              ; $e458
@@ -588,7 +619,7 @@ JD_ENABLE = 1
 !if ULTIMATE_BUILD {
     !text "    **** COMMODORE 64 ULTIMATE ****" ; $e475-$e497
 } else {
-    !text "    **** COMMODORE 64 STANDARD ****" ; $e475-$e497
+    !text "    **** COMMODORE 64 BASIC V2 ****" ; $e475-$e497
 }
     !byte $0d,$0d                            ; $e498-$e499
     !text " DOLFFY DOS 1.0  "                ; $e49a-$e4aa
@@ -757,16 +788,22 @@ JD_ENABLE = 1
     sty $cf                                  ; $e5e2
     jsr $ea13                                ; $e5e4
     !byte $20,$b4,$e5   ; $e5e7-$e5e9 REWRITE jsr $f533 -> jsr $e5b4 (#1)
-    cmp #$83                                 ; $e5ea
+    cmp #$83                                 ; $e5ea SHIFT+RUN/STOP key?
     bne $e5fe                                ; $e5ec
-    ldx #$09                                 ; $e5ee
-    sei                                      ; $e5f0
-    stx $c6                                  ; $e5f1
-    lda $ece6,x                              ; $e5f3
-    sta $0276,x                              ; $e5f6
-    dex                                      ; $e5f9
-    bne $e5f3                                ; $e5fa
-    beq $e5cd                                ; $e5fc
+    beq $e5cd                                ; $e5ee SHIFT+RUN/STOP discarded (auto-LOAD removed)
+!if CLOCK_ENABLE {
+CLK_LED:
+    lda $028d
+    lsr
+    lda #$c0
+    bcc CLK_LEDSET
+    ora #$20
+CLK_LEDSET:
+    sta $d015
+    rts
+} else {
+    !fill $e, $ea   ; $e5f0-$e5fd BLANK SHIFT+RUN/STOP auto-LOAD buffer fill (removed)
+}
     cmp #$0d                                 ; $e5fe
     bne $e5ca                                ; $e600
     ldy $d5                                  ; $e602
@@ -1654,23 +1691,18 @@ JD_ENABLE = 1
     !byte $ff                                ; $6339 (undefined opcode)
     !byte $11,$ff                            ; $633a (ora ($ff),y - zeropage wrap)
     !byte $ff                                ; $633c (undefined opcode)
-    brk                                      ; $ecb9
-    brk                                      ; $ecba
-    brk                                      ; $ecbb
-    brk                                      ; $ecbc
-    brk                                      ; $ecbd
-    brk                                      ; $ecbe
-    brk                                      ; $ecbf
-    brk                                      ; $ecc0
-    brk                                      ; $ecc1
-    brk                                      ; $ecc2
-    brk                                      ; $ecc3
-    brk                                      ; $ecc4
-    brk                                      ; $ecc5
-    brk                                      ; $ecc6
-    brk                                      ; $ecc7
-    brk                                      ; $ecc8
-    brk                                      ; $ecc9
+!if CLOCK_ENABLE {
+CLK_PREIO:
+    bit $d011
+    bmi CLK_PREIO
+    lda $d012
+    cmp #CLK_TOPL+4
+    bcc CLK_PREIO
+    jmp CLK_PREHI
+    !fill $ecca - *, $00
+} else {
+    !fill $11, $00
+}
     !byte $9b                                ; $634e (undefined opcode)
     !byte $37                                ; $634f (undefined opcode)
     brk                                      ; $eccc
@@ -1696,9 +1728,7 @@ JD_ENABLE = 1
     !byte $04                                ; $6367 (undefined opcode)
     ora $06                                  ; $ece4
     !byte $07                                ; $636a (undefined opcode)
-    !byte $4c,$4f,$61                        ; $636b (data: "LOa")
-    ora $5393                                ; $ecea
-    eor $0d53,y                              ; $eced
+    !fill $9, $00   ; $ece7-$ecef BLANK SHIFT+RUN/STOP auto-LOAD string (removed)
     brk                                      ; $ecf0
     plp                                      ; $ecf1
     bvc $ed6c                                ; $ecf2
@@ -1866,8 +1896,12 @@ JD_ENABLE = 1
     tax                                      ; $ee0c
     jsr $ee85                                ; $ee0d
     jmp $ee97                                ; $ee10
+!if CLOCK_ENABLE {
+    jsr CLK_DIN                              ; $ee13
+} else {
     sei                                      ; $ee13
     lda #$00                                 ; $ee14
+}
     sta $a5                                  ; $ee16
 !if JD_ENABLE {
     jmp JDISP                                ; $ee18 ACPTR fork -> jiffy dispatch
@@ -2127,6 +2161,9 @@ JD_ENABLE = 1
 ; N=DATA-in b7). EOI = CLK-in high & DATA-in low.
 ; =============================================================================
 JT_GATE:
+!if CLOCK_ENABLE {
+    jsr CLK_ENTER
+}
     lda $9e
     bpl JT_GSTK          ; bit7 clear -> not jiffy -> stock serial/parallel body
     lda $93
@@ -2189,7 +2226,21 @@ DC_RELOC:
     jmp $f4e8            ; stock relocate: lda $c3/sta $ae/lda $c4/sta $af -> jmp $eebb
 DC_FILE:
     jmp $f4f0            ; jmp $eebb with $ae/$af = the file's address
+!if CLOCK_ENABLE {
+CLK_URD:
+    lda $df1c
+    bpl CLK_UDONE
+    lda $df1e
+    sta CLK_BUF,x
+    inx
+    cpx #19
+    bcc CLK_URD
+CLK_UDONE:
+    jmp CLK_USTAT
     !fill $f08e - *, $ea
+} else {
+    !fill $f08e - *, $ea
+}
 } else {
     !fill $89, $ea   ; $f005-$f08d BLANK ML-monitor prologue + command loop
 }
@@ -2287,10 +2338,23 @@ DC_FILE:
     tya                                      ; $f180
     jsr $eddd                                ; $f181
     jmp $edfe                                ; $f184
+!if CLOCK_ENABLE {
+CLK_USTAT:
+    lda #$02
+    sta $df1c
+    jsr CLK_SETCOL
+    jmp CLK_DRAW
+CLK_PREHI:
+    cmp #CLK_BOTL
+    bcc CLK_ENTER
+    jmp CLK_PREIO
+    !fill $f199 - *, $ea
+} else {
     !fill $f196 - *, $ea
     brk                                      ; $f196
     brk                                      ; $f197
     brk                                      ; $f198
+}
     !byte $03                                ; $681d (undefined opcode)
     !byte $27                                ; $681e (undefined opcode)
     brk                                      ; $f19b
@@ -2328,7 +2392,31 @@ DC_FILE:
     jmp $eddd                                ; $f1d8
     pla                                      ; $f1db
     jmp $f713                                ; $f1dc
+!if CLOCK_ENABLE {
+CLK_ENTER:
+    lda #CLK_BUSYN
+    sta CLK_BUSY
+    lda CLK_MODE
+    bne CLK_EN0
+    inc CLK_MODE
+    jsr CLK_CLOSED
+    lda #$01
+    sta $d019
+    lsr
+    sta $d015
+    sta $d01a
+    lda $dd00
+    ora #$03
+    sta $dd00
+    lda CLK_SAVEBG
+    sta $d021
+    jmp CLK_ECIA
+CLK_EN0:
+    rts
+    !fill $f20e - *, $ea
+} else {
     !fill $2f, $ea   ; $f1df-$f20d BLANK monitor filename parser
+}
     jsr $f30f                                ; $f20e
     beq $f216                                ; $f211
     jmp $f701                                ; $f213
@@ -2341,7 +2429,20 @@ DC_FILE:
     sta $99                                  ; $f223
     clc                                      ; $f225
     rts                                      ; $f226
+!if CLOCK_ENABLE {
+CLK_TSWAP:
+    ldx #CLK_TOPDLY
+CLK_TSDLY:
+    dex
+    bne CLK_TSDLY
+CLK_BSWAP:
+    lda $dd00
+    eor #$03
+    sta $dd00
+    rts
+} else {
     !fill $e, $00   ; $f227-$f234 BLANK monitor command-char table
+}
     !byte $3a                                ; $68b9 (undefined opcode)
     rol                                    ; $f236
     tax                                      ; $f237
@@ -2368,7 +2469,19 @@ DC_FILE:
     sta $9a                                  ; $f268
     clc                                      ; $f26a
     rts                                      ; $f26b
+!if CLOCK_ENABLE {
+CLK_BOOTDONE:
+    sei
+    jsr CLK_INIT
+    cli
+    jmp $a644
+CLK_PRINTCR:
+    lda #$0d
+    jmp $ffd2
+    !fill $f279 - *, $ea
+} else {
     !fill $d, $ea   ; $f26c-$f278 BLANK monitor byte-store helper (embedded in CKOUT)
+}
     tax                                      ; $f279
     jsr $ed0c                                ; $f27a
     lda $b9                                  ; $f27d
@@ -2497,14 +2610,55 @@ DC_FILE:
     cmp #$03                                 ; $f379
     beq $f3ac                                ; $f37b
     bcc $f384                                ; $f37d
+!if CLOCK_ENABLE {
+    jsr CLK_NAMEIO                           ; $f37f
+} else {
     jsr $f3d5                                ; $f37f
+}
     bcc $f3ac                                ; $f382
     jmp $f713                                ; $f384
+!if CLOCK_ENABLE {
+CLK_SPREN:
+    ldx #$0f
+    stx $c7ff
+    dex
+    stx $c7fe
+    dex
+    stx $c7fd
+    rts
+CLK_DST: !byte <CLK_MBASE,<CLK_MBASE,<CLK_TBASE,<CLK_TBASE,<CLK_TBASE
+CLK_SETCOL:
+    lda $d020
+    and #$0f
+    tax
+    lda CLK_SPRCOL,x
+    ldx #$02
+CLK_SCL:
+    sta $d02c,x
+    dex
+    bpl CLK_SCL
+    !fill $f3ac - *, $18
+} else {
     !fill $25, $00   ; $f387-$f3ab BLANK F-key macro strings part1
+}
     clc                                      ; $6a30 (relocated branch target for clc+rts)
     rts                                      ; $f3ad
+!if CLOCK_ENABLE {
+CLK_SPRREG:
+    lda #$e0
+    sta $d010
+    lda #$18
+    sta $d00a
+    lda #$fe
+    sta $d00b
+    jmp CLK_SPREN
+CLK_OFS: !byte CLK_DSH+1,CLK_DSH,CLK_DSH+2,CLK_DSH+1,CLK_DSH
+CLK_SPRCOL: !byte 11,12,10,6,15,13,14,8,7,15,2,15,0,5,6,11
+    !fill $f3d5 - *, $ea
+} else {
     !fill $6, $00   ; $f3ae-$f3b3 BLANK F-key macro strings part2
     !fill $21, $ea   ; $f3b4-$f3d4 BLANK F7/UCI-menu hook
+}
     lda $b9                                  ; $f3d5
     bmi $f3ac                                ; $f3d7
     ldy $b7                                  ; $f3d9
@@ -2530,7 +2684,44 @@ DC_FILE:
     cpy $b7                                  ; $f402
     bne $f3fc                                ; $f404
     jmp $f654                                ; $f406
+!if CLOCK_ENABLE {
+CLK_SPRINIT:
+    lda #$00
+    ldx #$40
+CLK_CLRSPR:
+    sta $c300,x
+    inx
+    bne CLK_CLRSPR
+    sta $ffff
+    lda #$30
+    sta $d00c
+    lda #$48
+    sta $d00e
+    lda #$fe
+    sta $d00d
+    sta $d00f
+    jmp CLK_SPRREG
     !fill $f42b - *, $ea
+} else {
+BANNER_PRINT:
+    lda #$73                                 ; normal startup banner
+    ldy #$e4
+    jsr $ab1e
+    lda $df1d                                ; UCI ident register
+    cmp #$c9
+    bne BANNER_DONE
+    ldx #$07
+BANNER_PATCH:
+    lda BANNER_ULT,x
+    sta $043e,x                              ; screen "BASIC V2" position
+    dex
+    bpl BANNER_PATCH
+BANNER_DONE:
+    rts
+BANNER_ULT:
+    !scr "ultimate"
+    !fill $f42b - *, $ea
+}
 !if JD_ENABLE {
 ; =============================================================================
 ; JS_TX - JiffyDOS fast SEND core (one byte to the listening drive), in $f42b hole.
@@ -2583,6 +2774,15 @@ JS_RP:
     lda JSPARK
     sta $dd00            ; re-park: CLK-out asserted (drive re-arms for next byte), bank preserved
     rts
+!if CLOCK_ENABLE {
+CLK_GATE:
+    lda $dd00
+    and #$01
+    beq CLK_GOFF
+    jmp CLK_BOTTOM
+CLK_GOFF:
+    jmp $ea81
+}
     !fill $f495 - *, $ea   ; pad JS_TX block to the $f495 boundary
 } else {
     !fill $6a, $ea   ; $f42b-$f494 BLANK ML-monitor command handlers
@@ -2611,7 +2811,11 @@ JS_RP:
     jsr $f5af                                ; $f4c1
     lda #$60                                 ; $f4c4
     sta $b9                                  ; $f4c6
+!if CLOCK_ENABLE {
+    jsr CLK_NAMEIO                           ; $f4c8
+} else {
     jsr $f3d5                                ; $f4c8
+}
     lda $ba                                  ; $f4cb
     jsr $ed09                                ; $f4cd
     lda $b9                                  ; $f4d0
@@ -2665,7 +2869,27 @@ JS_RP:
     jsr $f642                                ; $f52b
     bcc $f5a9                                ; $f52e
     jmp $f704                                ; $f530
+!if CLOCK_ENABLE {
+CLK_DIN:
+    sei
+    jsr CLK_ENTER
+    lda #$00
+    rts
+CLK_DOUT:
+    lda $9a
+    ora $ba
+    cmp #$08
+    bcs CLK_DOUT1
+    rts
+CLK_DOUT1:
+    jmp CLK_ENTER
+CLK_GONE:
+    jsr CLK_SYSENTER
+    jmp $a7e4
+    !fill $f555 - *, $ea
+} else {
     !fill $22, $ea   ; $f533-$f554 BLANK F-key dispatch (E5E7 now bypasses)
+}
     !byte $36   ; $f555 kept tail
     sta $f8                                  ; $f556
     lda $0297                                ; $f558
@@ -2754,7 +2978,11 @@ JS_RP:
     ldy $b7                                  ; $f5fe
     bne $f605                                ; $f600
     jmp $f710                                ; $f602
+!if CLOCK_ENABLE {
+    jsr CLK_NAMEIO                           ; $f605
+} else {
     jsr $f3d5                                ; $f605
+}
     jsr $f68f                                ; $f608
     lda $ba                                  ; $f60b
     jsr $ed0c                                ; $f60d
@@ -2795,7 +3023,18 @@ JS_RP:
     lda #$08                                 ; $f65c
     sta $ba                                  ; $f65e
     !byte $d0,$98                            ; $6ce4 (bne $6c7d)
+!if CLOCK_ENABLE {
+CLK_BOT2:
+    lda $d012
+    cmp #252
+    bcc CLK_BOT2
+    lda CLK_ACTIVE
+    sta $d011
+    jmp $ea81
     !fill $f676 - *, $ea
+} else {
+    !fill $f676 - *, $ea
+}
     lda #$00                                 ; $f676
     sta $90                                  ; $f678
     lda $ba                                  ; $f67a
@@ -2886,7 +3125,16 @@ JS_RP:
     pla                                      ; $f729
     sec                                      ; $f72a
     rts                                      ; $f72b
+!if CLOCK_ENABLE {
+CLK_SYSENTER:
+    jsr CLK_PREIO
+    lda #CLK_SYSN
+    sta CLK_BUSY
+    rts
+    !fill $f736 - *, $ea
+} else {
     !fill $a, $ea   ; $f72c-$f735 BLANK monitor helper (dead island, callers blanked)
+}
     jsr $ee97                                ; $f736
     bit $dd01                                ; $f739
     and #$40                                 ; $f73c
@@ -3070,7 +3318,23 @@ AT_DIR_NAME:
     bcc $f8ac                                ; $f8a8
     adc #$06                                 ; $f8aa
     jmp $ffd2                                ; $f8ac
+!if CLOCK_ENABLE {
+CLK_RASTER:
+    lda #$7f
+    sta $dc0d
+    lda #CLK_BOTL
+    sta $d012
+    lda $d011
+    and #$7f
+    sta $d011
+    lda #$01
+    sta $d01a
+    sta $d019
+    rts
+    !fill $f8cb - *, $00
+} else {
     !fill $1c, $00   ; $f8af-$f8ca BLANK monitor handler-address table
+}
     ora ($0a,x)                              ; $f8cb
     !byte $64                                ; $6f51 (undefined opcode)
     inx                                      ; $f8ce
@@ -3285,6 +3549,33 @@ JD_CAP:
     lda $95              ; command/data byte currently being clocked out
     sta $9b              ; stash it for the TALK gate above
     jmp $ee8e            ; perform the original CLK-assert, rts to $ed62
+!if CLOCK_ENABLE {
+CLK_BOTTOM:
+    lda $d011
+    ora #$08
+    sta CLK_ACTIVE
+    ldy #CLK_TOPA
+CLK_W248:
+    lda $d012
+    cmp #248
+    bcc CLK_W248
+    lda $d011
+    and #$f7
+    sta $d011
+CLK_W250:
+    ldx $d012
+    cpx #250
+    bcc CLK_W250
+    ldx #CLK_BGDLY
+CLK_BDLY:
+    dex
+    bne CLK_BDLY
+    sty $d012
+    jsr CLK_BSWAP
+    lda $d020
+    sta $d021
+    jmp CLK_BOT2
+}
     !fill $fa6b - *, $ea   ; pad JD detect block to the $fa6b boundary
 } else {
     !fill $89, $ea   ; $f9e2-$fa6a pristine blank (137 bytes)
@@ -3339,6 +3630,9 @@ JD_CAP:
 ; JS_T3/JS_T4: low-nibble -> slot3/slot4 $DD00 value (CLK=bit3/DATA=bit1, CLK=bit2/DATA=bit0).
 ; =============================================================================
 JS_GATE:
+!if CLOCK_ENABLE {
+    jsr CLK_DOUT
+}
     lda $9e
     bpl JS_STOCK         ; not jiffy-armed -> stock send
     lda $dd00
@@ -3357,15 +3651,47 @@ JS_T3:
     !byte $07,$07,$27,$27,$07,$07,$27,$27,$17,$17,$37,$37,$17,$17,$37,$37
 JS_T4:
     !byte $07,$27,$07,$27,$17,$37,$17,$37,$07,$27,$07,$27,$17,$37,$17,$37
+!if CLOCK_ENABLE {
+CLK_DRAW2:
+    sta $fb
+    lda CLK_DST,x
+    sta $fd
+    lda CLK_OFS,x
+    sta $fa
+    jsr CLK_CELL
+    dex
+    bpl CLK_DLP
+    pla
+    sta $01
+    rts
+    !fill $fb11 - *, $ea
+} else {
     !fill $fb02 - *, $ea   ; pad JS_GATE/tables block to the $fb02 boundary
+    !fill $f, $00   ; $fb02-$fb10 BLANK F-key hardcopy fake-return data table
+}
 } else {
     !fill $42, $ea   ; $fac0-$fb01 BLANK directory decimal block-count printer
-}
     !fill $f, $00   ; $fb02-$fb10 BLANK F-key hardcopy fake-return data table
+}
     !byte $8d,$8c,$02,$84,$c5,$ad,$8c,$02   ; $fb11-$fb2d SCNKEY stub (keeps Z contract) + EA pad
-    !byte $60,$ea,$ea,$ea,$ea,$ea,$ea,$ea
+    !byte $60
+!if CLOCK_ENABLE {
+CLK_DRAWLED:
+    lda #$88
+    sta $fb
+    lda #$d2
+    sta $fc
+    lda #$40
+    sta $fd
+    lda #CLK_DSH+1
+    sta $fa
+    jmp CLK_CELL
+    !fill $fb2e - *, $ea
+} else {
+    !byte $ea,$ea,$ea,$ea,$ea,$ea,$ea
     !byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea
     !byte $ea,$ea,$ea,$ea,$ea
+}
 !if JD_ENABLE {
 ; VIC-bank-preserving setup helpers (placed in the freed $fb2e hardcopy hole).
 ; Called once per transfer; off the cycle-critical path.
@@ -3392,6 +3718,36 @@ JS_BANKSET:                  ; send: capture bank -> merged park/edge values
     ora #$10
     sta JSPARK           ; $14|JV : send park / re-park = JSEDGE | $10
     rts
+!if CLOCK_ENABLE {
+CLK_DRAW:
+    lda $01
+    pha
+    lda #$33
+    sta $01
+    lda #>CLK_TBASE
+    sta $fe
+    jsr CLK_DRAWLED
+    lda #$d1
+    sta $fc
+    ldx #$04
+CLK_DLP:
+    cpx #$02
+    beq CLK_COLON
+    txa
+    eor #$0f
+    tay
+    lda CLK_BUF,y
+    and #$0f
+    asl
+    asl
+    asl
+    ora #$80
+    bne CLK_HAVE
+CLK_COLON:
+    lda #$d0
+CLK_HAVE:
+    jmp CLK_DRAW2
+}
     !fill $fb8e - *, $ea   ; pad to the kept hardcopy tail
 } else {
     !fill $60, $ea   ; $fb2e-$fb8d BLANK screen-to-printer hardcopy
@@ -3401,10 +3757,23 @@ JS_BANKSET:                  ; send: capture bank -> merged park/edge values
     lda $c1                                  ; $fb92
     sta $ac                                  ; $fb94
     rts                                      ; $fb96
+!if CLOCK_ENABLE {
+CLK_CLOSED:
+    lda #$00
+    sta $ffff
+    lda CLK_ACTIVE
+    sta $d011
+    rts
+CLK_NAMEIO:
+    jsr CLK_PREIO
+    jmp $f3d5
+    !fill $fbaa - *, $ea
+} else {
     !fill $7, $ea   ; $fb97-$fb9d BLANK directory line-number printer
     lda #$20                                 ; $fb9e
     bit $0da9                                ; $fba0
     jmp $ffd2                                ; $fba3
+}
 !if JD_ENABLE {
 ; =============================================================================
 ; JiffyDOS fast RECEIVE - shared tight core (JT_RX) + ACPTR single-byte wrapper.
@@ -3501,6 +3870,21 @@ JT_RG:
     pla                  ; A = received byte
     eor JC               ; cancel the bank's constant offset in b0,b1 (JC=$03^JV; 0 on bank0)
     rts
+!if CLOCK_ENABLE {
+CLK_INIT:
+    lda #$01
+    sta CLK_TICK
+    lsr
+    sta CLK_MODE
+    lda $d021
+    sta CLK_SAVEBG
+    lda #<CLK_IRQ
+    sta $0314
+    lda #>CLK_IRQ
+    sta $0315
+    jsr CLK_SPRINIT
+    jmp CLK_RASTER
+}
     !fill $fc3f - *, $ea   ; pad JD receive block to the $fc3f boundary
 } else {
     !fill $99, $ea   ; $fba6-$fc3e BLANK LOAD"$"/directory read+list engine
@@ -3557,7 +3941,31 @@ JT_RG:
     jsr $fddd                                ; $fca5
     plp                                      ; $fca8
     rts                                      ; $fca9
+!if CLOCK_ENABLE {
+CLK_CELL:
+    stx $02
+    ldx #$08
+CLK_CELL1:
+    ldy #$00
+    lda ($fb),y
+    ldy $fa
+    sta ($fd),y
+    inc $fb
+    inc $fa
+    inc $fa
+    inc $fa
+    dex
+    bne CLK_CELL1
+    ldx $02
+    rts
+CLK_ECIA:
+    lda #$81
+    sta $dc0d
+    rts
+    !fill $fcca - *, $ea
+} else {
     !fill $20, $ea   ; $fcaa-$fcc9 BLANK W monitor handler
+}
     lda $01                                  ; $fcca
     ora #$20                                 ; $fccc
     sta $01                                  ; $fcce
@@ -3610,7 +4018,7 @@ JT_RG:
     dey                                      ; $fd2c
     bpl $fd20                                ; $fd2d
     rts                                      ; $fd2f
-    and ($ea),y                              ; $fd30
+    !byte $31,$ea                            ; $fd30 stock IRQ vector -> $ea31
     ror $fe                                  ; $fd32
     !byte $47                                ; $73b8 (undefined opcode)
     inc $f34a,x                              ; $fd35
@@ -3805,12 +4213,75 @@ JT_RG:
     tax                                      ; $febf
     pla                                      ; $fec0
     rti                                      ; $fec1
+!if CLOCK_ENABLE {
+    jsr CLK_PRINTCR                          ; $fec2
+} else {
     jsr $fba1                                ; $fec2
+}
     lda #$2e                                 ; $fec5
     jmp $ffd2                                ; $fec7
-    !byte $60,$ea   ; $feca-$fecb STUB-RTS $-dir-load entry
+    !byte $60   ; $feca STUB-RTS $-dir-load entry
+!if CLOCK_ENABLE {
+CLK_IRQ:
+    lda CLK_MODE
+    beq CLK_CHKVIC
+    dec CLK_BUSY
+    bne CLK_CIA
+    lsr
+    sta CLK_MODE
+    jsr CLK_RASTER
+CLK_CIA:
+    jmp $ea31
+CLK_CHKVIC:
+    lda $d019
+    lsr
+    bcc CLK_CIA
+    lda #$01
+    sta $d019
+    lda $d012
+    bpl CLK_POS
+    jmp CLK_GATE
+CLK_POS:
+    cmp #CLK_TOPL+4
+    bcs CLK_CIA
+CLK_TOP:
+CLK_WTOP:
+    lda $d012
+    cmp #CLK_TOPL
+    bcc CLK_WTOP
+    lda #CLK_BOTL
+    sta $d012
+    nop
+    jsr CLK_TSWAP
+    lda CLK_SAVEBG
+    sta $d021
+    dec CLK_TICK
+    bne CLK_NOTIME
+    ldx #CLK_SECFR
+    stx CLK_TICK
+    jsr CLK_UPDATE
+CLK_NOTIME:
+    jsr CLK_LED
+    jmp $ea31
+CLK_UPDATE:
+    ldx #$01
+    stx $df1d
+    lda #$26
+    sta $df1d
+    stx $df1c
+CLK_UWAIT:
+    lda $df1c
+    and #$c0
+    beq CLK_UWAIT
+CLK_UEXIT:
+    ldx #$00
+    jmp CLK_URD
+    !fill $ff3b - *, $ea
+} else {
+    !byte $ea   ; $fecb
     !fill $13, $ea   ; $fecc-$fede BLANK CTRL+D residual dir-load dispatch tail (removed)
     !fill $5c, $ea   ; $fedf-$ff3a BLANK F-key on/off (CTRL+&/X) + CTRL+V VIC-init dispatch (removed)
+}
 ; =============================================================================
 ; WAIT_PARALLEL_HANDSHAKE - Wait for drive to signal via FLAG or bit 4
 ; Exit: Returns when either FLAG interrupt or $DD00 bit 4 goes high

@@ -1,15 +1,14 @@
 # Dolffy DOS — usable free ROM space (current map)
 
-Live map of the overwritable holes in the **current** `kernal/rom/dolffy.rom`
-(MD5 `e0733d7b` for the Ultimate build), origin `$E000`, fixed 8192 bytes. These are the bytes the
-DolphinDOS-2 feature removal (the "bake") freed — available for further Ultimate
-add-ons (border clock, shift-lock indicator, etc.).
+Live map of the overwritable holes in the **current** plain/stable
+`kernal/rom/dolffy.rom`, origin `$E000`, fixed 8192 bytes. These are the bytes the
+DolphinDOS-2 feature removal (the "bake") freed — available for further add-ons.
 
 `file_offset = addr - $E000`. A region counts as free only if it is `$EA`/`$00`
 fill that diverges from the pristine DolphinDOS-2 base (`kernal/reference/dolphindos2-faithful-b3b0.rom`).
 Regenerate this map after any bake or feature change; see the one-liner at the bottom.
 
-**Total free: 680 bytes in 26 regions.** The ROM stays exactly 8192 bytes — you
+**Total free: 674 bytes in 28 regions.** The ROM stays exactly 8192 bytes — you
 cannot shrink the file, only fill these holes (use `jmp` glue to span them).
 
 The JiffyDOS fast serial work (M1 LOAD + M2 SAVE + M3 detection + GEOS-safe
@@ -20,6 +19,9 @@ across six holes (see "Now in use" below).
 
 | Range          | Size | Fill  | What was here (removed feature) / current note                   |
 | -------------- | ---- | ----- | ---------------------------------------------------------------- |
+| `$E42C-$E42F`  |    4 | `$EA` | slack after the plain runtime banner-patch call                  |
+| `$E5F0-$E5FD`  |   14 | `$EA` | SHIFT+RUN/STOP auto-LOAD buffer fill (removed)                   |
+| `$ECE7-$ECF0`  |   10 | `$00` | SHIFT+RUN/STOP auto-LOAD string (removed)                        |
 | `$F075-$F08D`  |   25 | `$EA` | ML-monitor command loop tail (JiffyDOS `JT_GATE` + `JS_PREP` + `DIRCHK` took `$F005-$F074`) |
 | `$F187-$F195`  |   15 | `$EA` | helper tail after the kept Dolphin parallel `X` sender           |
 | `$F1AA-$F1AC`  |    3 | `$EA` | directory char-printer thunk                                     |
@@ -28,7 +30,6 @@ across six holes (see "Now in use" below).
 | `$F26C-$F278`  |   13 | `$EA` | ML-monitor byte-store helper (was embedded in CKOUT)             |
 | `$F387-$F3AB`  |   37 | `$00` | F-key macro strings, part 1                                      |
 | `$F3AE-$F3D4`  |   39 | `$00` | F-key macro strings part 2 + F7/UCI-menu hook                    |
-| `$F409-$F42A`  |   34 | `$EA` | old runtime Ultimate banner patch (now a static build variant)   |
 | `$F47B-$F47F`  |    5 | `$EA` | slack inside the JiffyDOS fast-SAVE core block (`JS_TX`, `$F42B-$F47A`) |
 | `$F487-$F494`  |   14 | `$EA` | slack inside the JiffyDOS fast-SAVE core block (tail to `$F495`)  |
 | `$F533-$F554`  |   34 | `$EA` | F-key dispatch                                                   |
@@ -58,7 +59,6 @@ across six holes (see "Now in use" below).
 |   39 | `$F3AE-$F3D4`  |
 |   37 | `$F387-$F3AB`  |
 |   36 | `$FC1B-$FC3E`  |
-|   34 | `$F409-$F42A`  |
 |   34 | `$F533-$F554`  |
 |   32 | `$FCAA-$FCC9`  |
 
@@ -106,9 +106,11 @@ quoted-load helper paths, and incidental `@$8` spelling were not restored.
 | `$FECA`         | `$`-dir stub `rts` (`$60`); hole starts at `$FECB`                   |
 | `$FF3B+`        | parallel-handshake serial wait (`jsr $ff3b` from `$EFE0/$EFE9/$F5A1`) and the IRQ/BRK entry `$FF48` |
 
-The boot banner is now a static build variant: `make ultimate` builds
-`kernal/rom/dolffy.rom` with `ULTIMATE` in the banner text, while `make plain`
-builds `kernal/rom/dolffy-plain.rom` with `STANDARD`.
+The boot banner is variant-specific: `make plain` builds `kernal/rom/dolffy.rom`
+with the original `BASIC V2` banner text plus the runtime UCI banner patch at
+`$F409-$F42A`; on Ultimate hardware it rewrites the screen copy to `ULTIMATE`.
+`make ultimate` builds `kernal/rom/dolffy-ultimate.rom` with static `ULTIMATE`
+banner text.
 
 ## Regenerate
 

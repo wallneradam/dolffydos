@@ -17,15 +17,18 @@ protocol documentation (see *Provenance and licensing*).
 ## Build
 
 ```
-make            # assembles rom/dolffy.rom (raw, headerless 8192-byte image)
+make            # assembles both raw, headerless 8192-byte images
+make plain      # assembles rom/dolffy.rom (stable base)
+make ultimate   # assembles rom/dolffy-ultimate.rom
 make verify     # checks the build still equals the upstream faithful base
                 # (MD5 b3b0fa84…)
 ```
 
 Requires the [ACME](https://sourceforge.net/projects/acme-crossass/) cross-assembler
-(`brew install acme` on macOS; tested with 0.97). `rom/dolffy.rom` is usable directly
-as a C64 KERNAL ROM (e.g. the Ultimate / C64U "Kernal ROM" config slot, or VICE
-`-kernal`).
+(`brew install acme` on macOS; tested with 0.97). The stable `plain` build is
+`rom/dolffy.rom`; the Ultimate-specific build is `rom/dolffy-ultimate.rom`. Either
+raw ROM is usable directly as a C64 KERNAL ROM (e.g. the Ultimate / C64U "Kernal
+ROM" config slot, or VICE `-kernal`).
 
 `make verify` proves the `$E000` relabel is faithful; it passes only on the pristine
 relabeled base. Now that the Dolffy bake (DolphinDOS feature removal, the Ultimate
@@ -48,7 +51,7 @@ shifted by `+$897C`; absolute operands and data are untouched. Transform:
 
 ```
 kernal.asm          the $E000 DolphinDOS 2 source — being turned into Dolffy DOS
-rom/                build output (dolffy.rom)
+rom/                build output (dolffy.rom, dolffy-ultimate.rom)
 tools/relabel.py    the $5684 -> $E000 byte-exact relabel transform
 reference/          pristine upstream base, preserved verbatim:
                       dolphindos2-faithful-b3b0.rom, kernal.orig.asm, transform.py
