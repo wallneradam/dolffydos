@@ -147,10 +147,12 @@ build reads it over the Command Interface and shows a clock on screen.
 
 ## Download
 
-Pre-built ROM images are published under the **Releases** tab of this repository:
+Pre-built ROM images are published on the
+[**Releases**](https://github.com/wallneradam/dolffydos/releases/latest) page. The
+links below always serve the **latest** release:
 
-- `dolffy.rom` — the **Plain** build
-- `dolffy-ultimate.rom` — the **Ultimate** build
+- [`dolffy.rom`](https://github.com/wallneradam/dolffydos/releases/latest/download/dolffy.rom) — the **Plain** build
+- [`dolffy-ultimate.rom`](https://github.com/wallneradam/dolffydos/releases/latest/download/dolffy-ultimate.rom) — the **Ultimate** build
 
 Each is a raw, headerless **8192-byte** image, usable directly anywhere a C64
 KERNAL ROM goes (the Ultimate's "Kernal ROM" slot, VICE's `-kernal`, an EPROM,
