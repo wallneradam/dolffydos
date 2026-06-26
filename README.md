@@ -97,6 +97,18 @@ Figures are the author's own measurements and are indicative. The parallel path 
 by far the fastest; on the serial path Dolffy lands a few seconds behind original
 JiffyDOS.
 
+The table lists one drive per setup, which misses the real point: with Dolffy
+**you no longer have to choose between DolphinDOS and JiffyDOS.** On their own each
+forces a trade-off — DolphinDOS is blistering over the parallel cable but only
+drives a single unit, while JiffyDOS happily handles several drives but cannot do
+parallel at all. Dolffy gives you both at once: a parallel-cabled drive gets the
+full DolphinDOS speed *while* your serial drives run at JiffyDOS speed — each
+device automatically using the fastest protocol it supports, with stock serial as
+the fallback. Without this, a second drive typically drops back to slow stock
+serial; here it stays fast. (The parallel path is unchanged from DolphinDOS —
+exactly as fast — and the serial path is a few seconds behind original JiffyDOS,
+not quite as optimized.)
+
 ## Two builds
 
 Every release ships **two** ROM images. They share the same fast-disk core; the
@@ -198,7 +210,11 @@ Fast disk access is a conversation between the **KERNAL** (this project) and the
 
 - **Parallel (DolphinDOS):** needs the DolphinDOS 1541 drive ROM, the parallel
   cable, and the drive's Extra RAM. On the Ultimate family all of this is built
-  in once you select the drive ROM and flip the toggles above.
+  in once you select the drive ROM and flip the toggles above. DolphinDOS is
+  **abandonware** and the 1541 drive ROM is freely available from the
+  [donnchawp/DolphinDOS2](https://github.com/donnchawp/DolphinDOS2) repository —
+  its latest version also includes a drive-ROM patch that fixes a rare glitch seen
+  on Ultimate machines, so prefer that one.
 - **Serial fast (JiffyDOS):** needs a **genuine JiffyDOS drive ROM** installed in
   the drive. Dolffy implements the **C64 side only**; it does not contain, and
   cannot substitute for, the proprietary drive ROM. If a serial drive does not
@@ -276,7 +292,7 @@ LOAD/SAVE across the parallel, JiffyDOS-serial and stock paths lives in
 
 ## Licensing
 
-Dolffy DOS combines material from several rights holders. **Wallner Ádám's own
+Dolffy DOS combines material from several rights holders. **Adam Wallner's own
 contributions** — the Dolffy DOS modifications, the build tooling, and the
 documentation — are released under the **MIT License** (see
 [`LICENSE`](LICENSE)). That grant covers **only** those contributions.

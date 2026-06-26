@@ -1,7 +1,7 @@
 # Licensing scope and third-party components
 
 The MIT License in `LICENSE` applies to the original contributions of
-Wallner Ádám to this project: the "Dolffy DOS" modifications to the KERNAL
+Adam Wallner to this project: the "Dolffy DOS" modifications to the KERNAL
 source, the build tooling, and the documentation under `docs/`.
 
 It does NOT — and cannot — license the pre-existing components this project is
@@ -17,6 +17,6 @@ built upon. Those remain under their own rights holders:
   the underlying Commodore KERNAL or DolphinDOS code above it.
 
 A built ROM image therefore combines material from several rights holders.
-The MIT grant here covers only Wallner Ádám's own changes; redistribution of
+The MIT grant here covers only Adam Wallner's own changes; redistribution of
 a complete ROM image is subject to the upstream rights and is at the user's
 own risk.
