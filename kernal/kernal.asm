@@ -3731,20 +3731,20 @@ CLK_DRAW:
     sta $fc
     ldx #$04
 CLK_DLP:
-    cpx #$02
-    beq CLK_COLON
     txa
     eor #$0f
     tay
     lda CLK_BUF,y
     and #$0f
+    cmp #$0f
+    bne CLK_DIGIT
+    lda #$00
+    beq CLK_HAVE
+CLK_DIGIT:
     asl
     asl
     asl
     ora #$80
-    bne CLK_HAVE
-CLK_COLON:
-    lda #$d0
 CLK_HAVE:
     jmp CLK_DRAW2
 }
