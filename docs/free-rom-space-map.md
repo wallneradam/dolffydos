@@ -35,7 +35,7 @@ across six holes (see "Now in use" below).
 | `$F533-$F554`  |   34 | `$EA` | F-key dispatch                                                   |
 | `$F662-$F675`  |   20 | `$EA` | monitor tail after device-1/2 SAVE redirect                      |
 | `$F72C-$F735`  |   10 | `$EA` | ML-monitor helper                                                |
-| `$F813-$F816`  |    4 | `$EA` | slack after `@$` / `@$9` directory streamer                      |
+| `$F815-$F816`  |    2 | `$EA` | slack after `@$` / `@$9` directory streamer                      |
 | `$F8AF-$F8CA`  |   28 | `$00` | ML-monitor handler-address table (14 pairs)                      |
 | `$FA37-$FA6A`  |   52 | `$EA` | tail slack after the JiffyDOS detection probe (`JD_LOOPCHK`/`JD_CAP`, `$F9E2-$FA36`) |
 | `$FAF7-$FB10`  |   26 | mixed | tail slack after the JiffyDOS fast-SAVE gate + slot tables (`JS_GATE`/`JS_T3`/`JS_T4`, `$FAC0-$FAF6`) |

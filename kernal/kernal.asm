@@ -3248,9 +3248,10 @@ AT_DIR_DONE:
     clc
     rts
 AT_DIR_KERR:
-    tax
-    jsr $ffcc
-    txa
+    pha
+    lda #$01
+    jsr $ffc3
+    pla
     jmp $e0f9
 AT_DIR_NAME:
     !byte $24
