@@ -5,9 +5,9 @@
 # Usage:
 #   scripts/release.sh [tag] [--draft] [--notes "text"]
 #
-# If <tag> is omitted, it is auto-derived by bumping the last numeric component
-# of the latest GitHub release tag (e.g. v1.0 -> v1.1, v1.9 -> v1.10). With no
-# prior release it starts at v1.0.
+# If <tag> is omitted, it is auto-derived by bumping the patch component on the
+# v1.0 maintenance line. The legacy v1.0 tag is treated as the base release, so
+# the next automatic tag after v1.0 is v1.0.2.
 #
 # Examples:
 #   scripts/release.sh            # auto-bump from the latest release
@@ -21,28 +21,32 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# Bump the last dot-separated numeric component of the latest release tag.
+# Bump the patch component on the v1.0 maintenance line.
 next_tag() {
-  local latest
-  latest="$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)"
-  if [ -z "$latest" ]; then
-    latest="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+  local tags tag patch max_patch=1
+  tags="$(gh release list --limit 50 --json tagName --jq '.[].tagName' 2>/dev/null || true)"
+  if [ -z "$tags" ]; then
+    tags="$(git tag --list 'v*' --sort=-v:refname)"
   fi
-  if [ -z "$latest" ]; then
-    echo "v1.0"
-    return
-  fi
-  local ver="${latest#v}"
-  local IFS=.
-  local parts=()
-  read -ra parts <<< "$ver"
-  local last=$(( ${#parts[@]} - 1 ))
-  if ! [[ "${parts[$last]}" =~ ^[0-9]+$ ]]; then
-    echo "error: cannot auto-bump tag '$latest'; pass an explicit tag" >&2
-    return 1
-  fi
-  parts[$last]=$(( parts[$last] + 1 ))
-  echo "v${parts[*]}"
+
+  while IFS= read -r tag; do
+    case "$tag" in
+      v1.0)
+        ;;
+      v1.0.*)
+        patch="${tag#v1.0.}"
+        if ! [[ "$patch" =~ ^[0-9]+$ ]]; then
+          echo "error: cannot auto-bump tag '$tag'; pass an explicit tag" >&2
+          return 1
+        fi
+        if [ "$patch" -gt "$max_patch" ]; then
+          max_patch="$patch"
+        fi
+        ;;
+    esac
+  done <<< "$tags"
+
+  echo "v1.0.$(( max_patch + 1 ))"
 }
 
 TAG=""
