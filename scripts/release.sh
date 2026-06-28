@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build both Dolffy DOS ROMs and publish them as a GitHub release.
+# Build Dolffy DOS ROMs and publish them as a GitHub release.
 #
 # Usage:
 #   scripts/release.sh [tag] [--draft] [--notes "text"]
@@ -70,12 +70,13 @@ fi
 
 PLAIN="kernal/rom/dolffy.rom"
 ULTIMATE="kernal/rom/dolffy-ultimate.rom"
+QUICKSTART="kernal/rom/dolffy-quickstart.rom"
 
-echo "==> Building both ROMs (clean)"
+echo "==> Building ROMs (clean)"
 make -C kernal clean
 make -C kernal all
 
-for f in "$PLAIN" "$ULTIMATE"; do
+for f in "$PLAIN" "$ULTIMATE" "$QUICKSTART"; do
   if [ ! -f "$f" ]; then
     echo "error: expected build output missing: $f" >&2
     exit 1
@@ -92,19 +93,20 @@ if [ -z "$NOTES" ]; then
   NOTES="Dolffy DOS ${TAG} — prebuilt KERNAL ROM images.
 
 - \`dolffy.rom\` — Plain build (conservative, runs anywhere a C64 KERNAL runs)
+- \`dolffy-quickstart.rom\` — Quickstart build (Plain plus C=+RUN/STOP load/start)
 - \`dolffy-ultimate.rom\` — Ultimate build (adds a real-time clock and a SHIFT LOCK indicator)
 
-Both are raw, headerless 8192-byte images. See the README for installation and the
+All three are raw, headerless 8192-byte images. See the README for installation and the
 drive-side ROM requirements (DolphinDOS 1541 ROM for the parallel path, a licensed
 JiffyDOS drive ROM for the serial fast path)."
 fi
 
 if gh release view "$TAG" >/dev/null 2>&1; then
   echo "==> Release $TAG exists — updating assets (clobber)"
-  gh release upload "$TAG" "$PLAIN" "$ULTIMATE" --clobber
+  gh release upload "$TAG" "$PLAIN" "$QUICKSTART" "$ULTIMATE" --clobber
 else
   echo "==> Creating release $TAG"
-  gh release create "$TAG" "$PLAIN" "$ULTIMATE" \
+  gh release create "$TAG" "$PLAIN" "$QUICKSTART" "$ULTIMATE" \
     --title "Dolffy DOS $TAG" \
     --notes "$NOTES" \
     $DRAFT

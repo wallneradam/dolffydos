@@ -77,9 +77,10 @@ faster.
   (see *Keyboard shortcuts*).
 - **Auto Ultimate detection** — shows a `COMMODORE 64 ULTIMATE` banner when a
   Command Interface is present, `COMMODORE 64 BASIC V2` otherwise.
+- **Quickstart build** — a separate ROM with C=+RUN/STOP quickstart restored.
 - **Ultimate build extras** — a real-time clock and a SHIFT LOCK indicator (see
   *The Ultimate extras*).
-- **Two ready-to-use builds** — a conservative Plain ROM and an Ultimate ROM.
+- **Three ready-to-use builds** — Plain, Quickstart, and Ultimate ROMs.
 - **Stock-compatible** — a drop-in 8 KB KERNAL; normal software keeps working.
 
 ## Why it is fast — a real-world example
@@ -109,15 +110,16 @@ serial; here it stays fast. (The parallel path is unchanged from DolphinDOS —
 exactly as fast — and the serial path is a few seconds behind original JiffyDOS,
 not quite as optimized.)
 
-## Two builds
+## Three builds
 
-Every release ships **two** ROM images. They share the same fast-disk core; the
-difference is the Ultimate-specific extras.
+Every release ships **three** ROM images. They share the same fast-disk core; the
+differences are the quickstart shortcut and the Ultimate-specific extras.
 
-| Build         | File                  | What you get |
-| ------------- | --------------------- | ------------ |
-| **Plain**     | `dolffy.rom`          | The conservative, stable base. Full Dolphin + JiffyDOS fast disk, the non-destructive directory wedge, and nothing that draws on the screen. Runs anywhere a C64 KERNAL runs. |
-| **Ultimate**  | `dolffy-ultimate.rom` | Everything in *Plain*, **plus** a real-time clock and a SHIFT LOCK indicator. Built for the Ultimate family. |
+| Build          | File                       | What you get |
+| -------------- | -------------------------- | ------------ |
+| **Plain**      | `dolffy.rom`               | The conservative, stable base. Full Dolphin + JiffyDOS fast disk, the non-destructive directory wedge, and nothing that draws on the screen. Runs anywhere a C64 KERNAL runs. |
+| **Quickstart** | `dolffy-quickstart.rom`    | Everything in *Plain*, **plus** C=+RUN/STOP to load and start the first program on disk. |
+| **Ultimate**   | `dolffy-ultimate.rom`      | Everything in *Plain*, **plus** a real-time clock and a SHIFT LOCK indicator. Built for the Ultimate family. |
 
 The **Plain** build auto-detects an Ultimate at boot: it shows the familiar
 `COMMODORE 64 BASIC V2` banner on a plain C64, and rewrites it to
@@ -125,7 +127,8 @@ The **Plain** build auto-detects an Ultimate at boot: it shows the familiar
 always shows `COMMODORE 64 ULTIMATE`. Both print a `DOLFFY DOS 1.0` line.
 
 If you are not on an Ultimate, or you just want the most conservative ROM, use the
-**Plain** build. If you are on an Ultimate and want the clock and the SHIFT LOCK
+**Plain** build. If you want the classic one-key disk start workflow, use
+**Quickstart**. If you are on an Ultimate and want the clock and the SHIFT LOCK
 indicator, use the **Ultimate** build.
 
 ### The Ultimate extras
@@ -261,13 +264,15 @@ combinations:
 | CTRL+G             | Move the cursor ~20 columns forward              |
 | CTRL+K             | Delete the line to the right of the cursor       |
 | CTRL+L             | Delete the line to the left of the cursor        |
+| C=+RUN/STOP        | Quickstart build: load and start the first file  |
 | RUN/STOP + RESTORE | BASIC warm start (the program in memory is kept) |
 | CTRL + RESTORE     | Full KERNAL reset                                |
 
 Coming from DolphinDOS? To make room for the fast-disk and Ultimate code, the
 F1–F8 macros, the other CTRL commands (CTRL+D, CTRL+@, CTRL+X, CTRL+&, CTRL+V,
 CTRL+\*, CTRL+DEL, C=+DEL) and SPACE+RESTORE were removed. The directory listing
-lives on as the `@$` / `@$9` command instead (see above).
+lives on as the `@$` / `@$9` command instead (see above). C=+RUN/STOP is restored
+only in the separate Quickstart build; Plain and Ultimate keep it disabled.
 
 ## Troubleshooting
 

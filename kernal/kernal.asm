@@ -36,6 +36,12 @@
 ; because it gates code before its original site (see ~$ed5f / $ed8e splices).
 JD_ENABLE = 1
 !ifndef ULTIMATE_BUILD { ULTIMATE_BUILD = 1 } ; 1 = Ultimate add-on build, 0 = plain/stable build
+!ifndef QUICKSTART_BUILD { QUICKSTART_BUILD = 0 } ; 1 = C=+RUN/STOP quickstart build
+!if ULTIMATE_BUILD {
+!if QUICKSTART_BUILD {
+    !error "QUICKSTART_BUILD cannot be combined with ULTIMATE_BUILD"
+}
+}
 CLOCK_ENABLE = ULTIMATE_BUILD
 !if JD_ENABLE { !source "jd_cal.inc" }   ; JiffyDOS fast-LOAD receiver calibration (JT_*)
 !if CLOCK_ENABLE {
@@ -793,8 +799,15 @@ CLK_DSH    = 6
     sty $cf                                  ; $e5e2
     jsr $ea13                                ; $e5e4
     !byte $20,$b4,$e5   ; $e5e7-$e5e9 REWRITE jsr $f533 -> jsr $e5b4 (#1)
-    cmp #$83                                 ; $e5ea SHIFT+RUN/STOP key?
+    cmp #$83                                 ; $e5ea SHIFT/C=+RUN/STOP key?
     bne $e5fe                                ; $e5ec
+!if QUICKSTART_BUILD {
+    lda $028e                                ; $e5ee last key's modifier flags
+    and #$02                                 ; $e5f1 Commodore key?
+    beq $e5cd                                ; $e5f3 SHIFT+RUN/STOP stays disabled
+    jmp QUICKSTART_RUN                       ; $e5f5 C=+RUN/STOP quickstart
+    !fill $e5fe - *, $ea
+} else {
     beq $e5cd                                ; $e5ee SHIFT+RUN/STOP discarded (auto-LOAD removed)
 !if CLOCK_ENABLE {
 CLK_LED:
@@ -808,6 +821,7 @@ CLK_LEDSET:
     rts
 } else {
     !fill $e, $ea   ; $e5f0-$e5fd BLANK SHIFT+RUN/STOP auto-LOAD buffer fill (removed)
+}
 }
     cmp #$0d                                 ; $e5fe
     bne $e5ca                                ; $e600
@@ -1722,7 +1736,13 @@ CLK_LEDSET:
     !byte $04                                ; $6367 (undefined opcode)
     ora $06                                  ; $ece4
     !byte $07                                ; $636a (undefined opcode)
+!if QUICKSTART_BUILD {
+QUICKSTART_STRING:
+    !byte $4c,$4f,$61,$0d,$53,$59,$53,$0d   ; "LOa", CR, "SYS", CR
+    !byte $00
+} else {
     !fill $9, $00   ; $ece7-$ecef BLANK SHIFT+RUN/STOP auto-LOAD string (removed)
+}
     brk                                      ; $ecf0
     plp                                      ; $ecf1
     bvc $ed6c                                ; $ecf2
@@ -2410,7 +2430,22 @@ CLK_EN0:
     rts
     !fill $f20e - *, $ea
 } else {
+!if QUICKSTART_BUILD {
+QUICKSTART_RUN:
+    ldx #QUICKSTART_LEN
+    sei
+    stx $c6
+QUICKSTART_COPY:
+    lda QUICKSTART_STRING-1,x
+    sta $0276,x
+    dex
+    bne QUICKSTART_COPY
+    jmp $e5cd
+QUICKSTART_LEN = 8
+    !fill $f20e - *, $ea
+} else {
     !fill $2f, $ea   ; $f1df-$f20d BLANK monitor filename parser
+}
 }
     jsr $f30f                                ; $f20e
     beq $f216                                ; $f211

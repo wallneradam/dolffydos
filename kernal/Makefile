@@ -1,6 +1,7 @@
 ACME    ?= acme
 ROM_PLAIN    = rom/dolffy.rom
 ROM_ULTIMATE = rom/dolffy-ultimate.rom
+ROM_QUICKSTART = rom/dolffy-quickstart.rom
 ROM_LEGACY_PLAIN = rom/dolffy-plain.rom
 # Upstream byte-exact reference (donnchawp/DolphinDOS2 build). Until the Dolffy
 # DOS bake begins (feature removal + JiffyDOS + rebrand) the source must still
@@ -8,13 +9,15 @@ ROM_LEGACY_PLAIN = rom/dolffy-plain.rom
 # bake diverges from upstream this reference is updated/retired.
 REF_MD5  = b3b0fa8410edef1a42dbccf87e798f6e
 
-.PHONY: all ultimate plain verify clean
+.PHONY: all ultimate plain quickstart verify clean
 
-all: plain ultimate
+all: plain ultimate quickstart
 
 ultimate: $(ROM_ULTIMATE)
 
 plain: $(ROM_PLAIN)
+
+quickstart: $(ROM_QUICKSTART)
 
 $(ROM_PLAIN): kernal.asm jd_cal.inc
 	@mkdir -p rom
@@ -26,6 +29,11 @@ $(ROM_ULTIMATE): kernal.asm jd_cal.inc
 	$(ACME) -DULTIMATE_BUILD=1 -o $(ROM_ULTIMATE) kernal.asm
 	@echo "built $(ROM_ULTIMATE) ($$(stat -f%z $(ROM_ULTIMATE)) bytes)"
 
+$(ROM_QUICKSTART): kernal.asm jd_cal.inc
+	@mkdir -p rom
+	$(ACME) -DULTIMATE_BUILD=0 -DQUICKSTART_BUILD=1 -o $(ROM_QUICKSTART) kernal.asm
+	@echo "built $(ROM_QUICKSTART) ($$(stat -f%z $(ROM_QUICKSTART)) bytes)"
+
 # Confirm the relabeled source still assembles to the upstream ROM byte-for-byte.
 verify: $(ROM_PLAIN)
 	@got=$$(md5 -q $(ROM_PLAIN)); \
@@ -36,4 +44,4 @@ verify: $(ROM_PLAIN)
 	fi
 
 clean:
-	rm -f $(ROM_PLAIN) $(ROM_ULTIMATE) $(ROM_LEGACY_PLAIN)
+	rm -f $(ROM_PLAIN) $(ROM_ULTIMATE) $(ROM_QUICKSTART) $(ROM_LEGACY_PLAIN)
