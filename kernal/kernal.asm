@@ -2902,23 +2902,25 @@ CLK_GOFF:
 !if CLOCK_ENABLE {
 CLK_DIN:
     sei
+CLK_DENTER:
     jsr CLK_ENTER
     lda #$00
+CLK_DRET:
     rts
 CLK_DOUT:
     lda $9a
     ora $ba
     cmp #$08
-    bcs CLK_DOUT1
+    bcs CLK_DENTER
     rts
-CLK_DOUT1:
-    jmp CLK_ENTER
 CLK_GONE:
     jsr CLK_PREIO
-    ror CLK_MODE
     jmp $a7e4
 CLK_MAIN:
+    lda CLK_MODE
+    beq CLK_MREADY
     jsr CLK_INIT
+CLK_MREADY:
     jmp $a483
     !fill $f555 - *, $ea
 } else {
