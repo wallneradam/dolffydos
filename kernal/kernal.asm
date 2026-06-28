@@ -36,10 +36,10 @@
 ; because it gates code before its original site (see ~$ed5f / $ed8e splices).
 JD_ENABLE = 1
 !ifndef ULTIMATE_BUILD { ULTIMATE_BUILD = 1 } ; 1 = Ultimate add-on build, 0 = plain/stable build
-!ifndef QUICKSTART_BUILD { QUICKSTART_BUILD = 0 } ; 1 = C=+RUN/STOP quickstart build
+!ifndef QUICKRUN_BUILD { QUICKRUN_BUILD = 0 } ; 1 = C=+RUN/STOP quickrun build
 !if ULTIMATE_BUILD {
-!if QUICKSTART_BUILD {
-    !error "QUICKSTART_BUILD cannot be combined with ULTIMATE_BUILD"
+!if QUICKRUN_BUILD {
+    !error "QUICKRUN_BUILD cannot be combined with ULTIMATE_BUILD"
 }
 }
 CLOCK_ENABLE = ULTIMATE_BUILD
@@ -801,11 +801,11 @@ CLK_DSH    = 6
     !byte $20,$b4,$e5   ; $e5e7-$e5e9 REWRITE jsr $f533 -> jsr $e5b4 (#1)
     cmp #$83                                 ; $e5ea SHIFT/C=+RUN/STOP key?
     bne $e5fe                                ; $e5ec
-!if QUICKSTART_BUILD {
+!if QUICKRUN_BUILD {
     lda $028e                                ; $e5ee last key's modifier flags
     and #$02                                 ; $e5f1 Commodore key?
     beq $e5cd                                ; $e5f3 SHIFT+RUN/STOP stays disabled
-    jmp QUICKSTART_RUN                       ; $e5f5 C=+RUN/STOP quickstart
+    jmp QUICKRUN_RUN                         ; $e5f5 C=+RUN/STOP quickrun
     !fill $e5fe - *, $ea
 } else {
     beq $e5cd                                ; $e5ee SHIFT+RUN/STOP discarded (auto-LOAD removed)
@@ -1736,8 +1736,8 @@ CLK_LEDSET:
     !byte $04                                ; $6367 (undefined opcode)
     ora $06                                  ; $ece4
     !byte $07                                ; $636a (undefined opcode)
-!if QUICKSTART_BUILD {
-QUICKSTART_STRING:
+!if QUICKRUN_BUILD {
+QUICKRUN_STRING:
     !byte $4c,$4f,$61,$0d,$53,$59,$53,$0d   ; "LOa", CR, "SYS", CR
     !byte $00
 } else {
@@ -2430,18 +2430,18 @@ CLK_EN0:
     rts
     !fill $f20e - *, $ea
 } else {
-!if QUICKSTART_BUILD {
-QUICKSTART_RUN:
-    ldx #QUICKSTART_LEN
+!if QUICKRUN_BUILD {
+QUICKRUN_RUN:
+    ldx #QUICKRUN_LEN
     sei
     stx $c6
-QUICKSTART_COPY:
-    lda QUICKSTART_STRING-1,x
+QUICKRUN_COPY:
+    lda QUICKRUN_STRING-1,x
     sta $0276,x
     dex
-    bne QUICKSTART_COPY
+    bne QUICKRUN_COPY
     jmp $e5cd
-QUICKSTART_LEN = 8
+QUICKRUN_LEN = 8
     !fill $f20e - *, $ea
 } else {
     !fill $2f, $ea   ; $f1df-$f20d BLANK monitor filename parser

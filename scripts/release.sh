@@ -70,13 +70,13 @@ fi
 
 PLAIN="kernal/rom/dolffy.rom"
 ULTIMATE="kernal/rom/dolffy-ultimate.rom"
-QUICKSTART="kernal/rom/dolffy-quickstart.rom"
+QUICKRUN="kernal/rom/dolffy-quickrun.rom"
 
 echo "==> Building ROMs (clean)"
 make -C kernal clean
 make -C kernal all
 
-for f in "$PLAIN" "$ULTIMATE" "$QUICKSTART"; do
+for f in "$PLAIN" "$ULTIMATE" "$QUICKRUN"; do
   if [ ! -f "$f" ]; then
     echo "error: expected build output missing: $f" >&2
     exit 1
@@ -93,7 +93,7 @@ if [ -z "$NOTES" ]; then
   NOTES="Dolffy DOS ${TAG} — prebuilt KERNAL ROM images.
 
 - \`dolffy.rom\` — Plain build (conservative, runs anywhere a C64 KERNAL runs)
-- \`dolffy-quickstart.rom\` — Quickstart build (Plain plus C=+RUN/STOP load/start)
+- \`dolffy-quickrun.rom\` — Quickrun build (Plain plus C=+RUN/STOP: \`LOa\`, then \`SYS\`)
 - \`dolffy-ultimate.rom\` — Ultimate build (adds a real-time clock and a SHIFT LOCK indicator)
 
 All three are raw, headerless 8192-byte images. See the README for installation and the
@@ -103,10 +103,10 @@ fi
 
 if gh release view "$TAG" >/dev/null 2>&1; then
   echo "==> Release $TAG exists — updating assets (clobber)"
-  gh release upload "$TAG" "$PLAIN" "$QUICKSTART" "$ULTIMATE" --clobber
+  gh release upload "$TAG" "$PLAIN" "$QUICKRUN" "$ULTIMATE" --clobber
 else
   echo "==> Creating release $TAG"
-  gh release create "$TAG" "$PLAIN" "$QUICKSTART" "$ULTIMATE" \
+  gh release create "$TAG" "$PLAIN" "$QUICKRUN" "$ULTIMATE" \
     --title "Dolffy DOS $TAG" \
     --notes "$NOTES" \
     $DRAFT
