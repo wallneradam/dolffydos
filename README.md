@@ -269,6 +269,39 @@ F1–F8 macros, the other CTRL commands (CTRL+D, CTRL+@, CTRL+X, CTRL+&, CTRL+V,
 CTRL+\*, CTRL+DEL, C=+DEL) and SPACE+RESTORE were removed. The directory listing
 lives on as the `@$` / `@$9` command instead (see above).
 
+## Troubleshooting
+
+### The Command Interface gets stuck after running a demo
+
+The Ultimate build's clock needs the **Command Interface** enabled — it reads the
+real-time clock over it. Some software pokes the same `$DF00-$DFFF` I/O area
+directly; in the author's experience a handful of **demos** do this. The
+Ultimate's firmware does not fully guard the Command Interface against stray
+writes, so such a program can leave it in a wedged internal state. The clock and
+most things keep working, so nothing looks wrong at first — but from that point on
+**other demos refuse to start**, and — the nasty part — neither **reloading your
+configuration** nor **power-cycling the machine** clears it. The bad internal
+state survives both.
+
+What *does* clear it is a **factory reset followed by reloading your own saved
+configuration**: that reinitializes the internal state as well, not just the
+settings.
+
+To avoid the problem in the first place, switch the Command Interface off *before*
+running such demos. Save this minimal configuration as `demo.cfg`:
+
+```
+[C64 and Cartridge Settings]
+Command Interface=Disabled
+
+[U64 Specific Settings]
+Turbo Control=Off
+```
+
+Load `demo.cfg`, run the demos, and when you are done restore your normal
+configuration — Command Interface and the clock included — from flash with
+**F1 -> Configuration -> Reset from Flash**.
+
 ## Building from source
 
 The editable KERNAL source lives in [`kernal/`](kernal/) as ACME assembler. It is
