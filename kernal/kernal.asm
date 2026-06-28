@@ -46,12 +46,12 @@ CLK_BGDLY  = 6
 CLK_TOPDLY = 5
 CLK_BUSYN  = 255
 CLK_SECFR  = 50
-CLK_MODE   = $cff3
-CLK_BUSY   = $cff7
-CLK_ACTIVE = $cff4
-CLK_TICK   = $cff5
-CLK_SAVEBG = $cff6
-CLK_BUF    = $cfe0
+CLK_MODE   = $033f
+CLK_BUSY   = $0340
+CLK_ACTIVE = $0341
+CLK_TICK   = $0342
+CLK_SAVEBG = $0343
+CLK_BUF    = $0344
 CLK_TBASE  = $c380
 CLK_MBASE  = $c3c0
 CLK_DSH    = 6
@@ -1696,18 +1696,7 @@ CLK_LEDSET:
     !byte $ff                                ; $6339 (undefined opcode)
     !byte $11,$ff                            ; $633a (ora ($ff),y - zeropage wrap)
     !byte $ff                                ; $633c (undefined opcode)
-!if CLOCK_ENABLE {
-CLK_PREIO:
-    bit $d011
-    bmi CLK_PREIO
-    lda $d012
-    cmp #CLK_TOPL+4
-    bcc CLK_PREIO
-    jmp CLK_PREHI
-    !fill $ecca - *, $00
-} else {
     !fill $11, $00
-}
     !byte $9b                                ; $634e (undefined opcode)
     !byte $37                                ; $634f (undefined opcode)
     brk                                      ; $eccc
@@ -2417,6 +2406,7 @@ CLK_ENTER:
     sta $d021
     jmp CLK_ECIA
 CLK_EN0:
+    sec
     rts
     !fill $f20e - *, $ea
 } else {
@@ -2889,11 +2879,11 @@ CLK_DOUT:
 CLK_DOUT1:
     jmp CLK_ENTER
 CLK_GONE:
-    jmp CLK_SYSENTER
+    jsr CLK_PREIO
+    ror CLK_MODE
+    jmp $a7e4
 CLK_MAIN:
-    lda #$00
-    sta CLK_MODE
-    jsr CLK_RASTER
+    jsr CLK_INIT
     jmp $a483
     !fill $f555 - *, $ea
 } else {
@@ -3135,11 +3125,11 @@ CLK_BOT2:
     sec                                      ; $f72a
     rts                                      ; $f72b
 !if CLOCK_ENABLE {
-CLK_SYSENTER:
-    jsr CLK_PREIO
-    sec
-    ror CLK_MODE
-    jmp $a7e4
+CLK_PREIO:
+    lda $d012
+    cmp #$40
+    bcc CLK_PREIO
+    jmp CLK_PREHI
     !fill $f736 - *, $ea
 } else {
     !fill $a, $ea   ; $f72c-$f735 BLANK monitor helper (dead island, callers blanked)
@@ -3886,13 +3876,14 @@ CLK_INIT:
     sta CLK_TICK
     lsr
     sta CLK_MODE
+    jsr CLK_SPRINIT
+CLK_REARM:
     lda $d021
     sta CLK_SAVEBG
     lda #<CLK_IRQ
     sta $0314
     lda #>CLK_IRQ
     sta $0315
-    jsr CLK_SPRINIT
     jmp CLK_RASTER
 }
     !fill $fc3f - *, $ea   ; pad JD receive block to the $fc3f boundary
@@ -4238,9 +4229,11 @@ CLK_IRQ:
     bmi CLK_CIA
     dec CLK_BUSY
     bne CLK_CIA
-    lsr
-    sta CLK_MODE
-    jsr CLK_RASTER
+    sec
+    ror CLK_MODE
+    nop
+    nop
+    nop
 CLK_CIA:
     jmp $ea31
 CLK_CHKVIC:
