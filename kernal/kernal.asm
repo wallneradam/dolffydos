@@ -2919,6 +2919,7 @@ CLK_GONE:
 CLK_MAIN:
     lda CLK_MODE
     beq CLK_MREADY
+    sei
     jsr CLK_INIT
 CLK_MREADY:
     jmp $a483
@@ -3367,6 +3368,7 @@ CLK_RASTER:
     lda #$01
     sta $d01a
     sta $d019
+    cli
     rts
     !fill $f8cb - *, $00
 } else {
@@ -3802,6 +3804,7 @@ CLK_CLOSED:
     sta $d011
     rts
 CLK_NAMEIO:
+    sei
     jsr CLK_PREIO
     jmp $f3d5
     !fill $fbaa - *, $ea
