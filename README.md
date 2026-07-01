@@ -122,6 +122,12 @@ differences are the quickrun shortcut and the Ultimate-specific extras.
 | **Quickrun**   | `dolffy-quickrun.rom`      | Everything in *Plain*, **plus** C=+RUN/STOP: `LOa`, then `SYS` starts the loaded program. |
 | **Ultimate**   | `dolffy-ultimate.rom`      | Everything in *Plain*, **plus** a real-time clock and a SHIFT LOCK indicator. Built for the Ultimate family. |
 
+> Compatibility note: the **Ultimate** build is the experimental one. It installs
+> a raster clock / SHIFT LOCK indicator and uses the Ultimate Command Interface
+> (`$DF1C-$DF1F`), so it has a wider hardware-compatibility surface than Plain.
+> If you want the safest KERNAL, or you use cartridges that depend on NMI or
+> IO1/IO2 (`$DE00` / `$DF00`), start with **Plain**.
+
 The **Plain** build auto-detects an Ultimate at boot: it shows the familiar
 `COMMODORE 64 BASIC V2` banner on a plain C64, and rewrites it to
 `COMMODORE 64 ULTIMATE` when a Command Interface is present. The **Ultimate** build
@@ -276,6 +282,15 @@ lives on as the `@$` / `@$9` command instead (see above). C=+RUN/STOP is restore
 only in the separate Quickrun build; Plain and Ultimate keep it disabled.
 
 ## Troubleshooting
+
+### A cartridge freezes before its own loader starts
+
+Try the **Plain** build first. The Ultimate build's clock and SHIFT LOCK
+indicator use a raster IRQ and the Ultimate Command Interface, while some
+cartridges use NMI or IO1/IO2 during their own boot process.
+
+If a cartridge stops before its own loader or menu appears, switch back to
+`dolffy.rom` and disable Command Interface for that setup.
 
 ### The Command Interface gets stuck after running a demo
 

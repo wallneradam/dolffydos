@@ -3984,7 +3984,8 @@ CLK_REARM:
     rts                                      ; $fca9
 !if CLOCK_ENABLE {
 CLK_CELL:
-    stx $02
+    txa
+    pha
     ldx #$08
 CLK_CELL1:
     ldy #$00
@@ -3997,7 +3998,8 @@ CLK_CELL1:
     inc $fa
     dex
     bne CLK_CELL1
-    ldx $02
+    pla
+    tax
     rts
 CLK_ECIA:
     lda #$81
