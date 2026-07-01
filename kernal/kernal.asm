@@ -2242,15 +2242,13 @@ DC_FILE:
     jmp $f4f0            ; jmp $eebb with $ae/$af = the file's address
 !if CLOCK_ENABLE {
 CLK_URD:
-    ldx #$00
-CLK_URD0:
     lda $df1c
     bpl CLK_UDONE
     lda $df1e
     sta CLK_BUF,x
     inx
     cpx #19
-    bcc CLK_URD0
+    bcc CLK_URD
 CLK_UDONE:
     jmp CLK_USTAT
     !fill $f08e - *, $ea
@@ -2503,9 +2501,9 @@ CLK_BSWAP:
     rts                                      ; $f26b
 !if CLOCK_ENABLE {
 CLK_BOOTDONE:
-    php
+    sei
     jsr CLK_INIT
-    plp
+    cli
     jmp $a644
 CLK_PRINTCR:
     lda #$0d
@@ -2658,7 +2656,7 @@ CLK_SPREN:
     dex
     stx $c7fd
     rts
-CLK_DST: !byte <CLK_TBASE,<CLK_TBASE,<CLK_TBASE,<CLK_MBASE,<CLK_MBASE
+CLK_DST: !byte <CLK_MBASE,<CLK_MBASE,<CLK_TBASE,<CLK_TBASE,<CLK_TBASE
 CLK_SETCOL:
     lda $d020
     and #$0f
@@ -2684,7 +2682,7 @@ CLK_SPRREG:
     lda #$fe
     sta $d00b
     jmp CLK_SPREN
-CLK_OFS: !byte CLK_DSH,CLK_DSH+1,CLK_DSH+2,CLK_DSH,CLK_DSH+1
+CLK_OFS: !byte CLK_DSH+1,CLK_DSH,CLK_DSH+2,CLK_DSH+1,CLK_DSH
 CLK_SPRCOL: !byte 11,12,10,6,15,13,14,8,7,15,2,15,0,5,6,11
     !fill $f3d5 - *, $ea
 } else {
@@ -2921,8 +2919,8 @@ CLK_GONE:
 CLK_MAIN:
     lda CLK_MODE
     beq CLK_MREADY
+    sei
     jsr CLK_INIT
-    cli
 CLK_MREADY:
     jmp $a483
     !fill $f555 - *, $ea
@@ -3370,6 +3368,7 @@ CLK_RASTER:
     lda #$01
     sta $d01a
     sta $d019
+    cli
     rts
     !fill $f8cb - *, $00
 } else {
@@ -3767,12 +3766,14 @@ CLK_DRAW:
     lda #>CLK_TBASE
     sta $fe
     jsr CLK_DRAWLED
-    jsr CLK_LED
     lda #$d1
     sta $fc
     ldx #$04
 CLK_DLP:
-    lda CLK_BUF+11,x
+    txa
+    eor #$0f
+    tay
+    lda CLK_BUF,y
     and #$0f
     cmp #$0f
     bne CLK_DIGIT
@@ -3911,20 +3912,19 @@ JT_RG:
     rts
 !if CLOCK_ENABLE {
 CLK_INIT:
-    lda $df1d
-    cmp #$c9
-    bne CLK_INOFF
     lda #$01
     sta CLK_TICK
     lsr
     sta CLK_MODE
     jsr CLK_SPRINIT
+CLK_REARM:
     lda $d021
     sta CLK_SAVEBG
-    jmp CLK_REARM
-CLK_INOFF:
-    sta CLK_MODE
-    rts
+    lda #<CLK_IRQ
+    sta $0314
+    lda #>CLK_IRQ
+    sta $0315
+    jmp CLK_RASTER
 }
     !fill $fc3f - *, $ea   ; pad JD receive block to the $fc3f boundary
 } else {
@@ -4300,8 +4300,11 @@ CLK_WTOP:
     bne CLK_NOTIME
     ldx #CLK_SECFR
     stx CLK_TICK
+    bit $0319
+    bvc CLK_NOTIME
     jsr CLK_UPDATE
 CLK_NOTIME:
+    jsr CLK_LED
     jmp $ea31
 CLK_UPDATE:
     ldx #$01
@@ -4311,15 +4314,11 @@ CLK_UPDATE:
     stx $df1c
 CLK_UWAIT:
     lda $df1c
-    bpl CLK_UWAIT
+    and #$c0
+    beq CLK_UWAIT
 CLK_UEXIT:
-    jmp CLK_URD0
-CLK_REARM:
-    lda #<CLK_IRQ
-    sta $0314
-    lda #>CLK_IRQ
-    sta $0315
-    jmp CLK_RASTER
+    ldx #$00
+    jmp CLK_URD
     !fill $ff3b - *, $ea
 } else {
     !byte $ea   ; $fecb
