@@ -50,7 +50,6 @@ CLK_TOPL   = 50
 CLK_TOPA   = CLK_TOPL-2
 CLK_BGDLY  = 6
 CLK_TOPDLY = 5
-CLK_BUSYN  = 255
 CLK_SECFR  = 50
 CLK_MODE   = $033f
 CLK_BUSY   = $0340
@@ -2408,12 +2407,13 @@ CLK_PREHI:
     jmp $f713                                ; $f1dc
 !if CLOCK_ENABLE {
 CLK_ENTER:
-    lda #CLK_BUSYN
-    sta CLK_BUSY
-    lda CLK_MODE
-    bne CLK_EN0
-    inc CLK_MODE
+    lda #$80
+    sta CLK_MODE
     jsr CLK_CLOSED
+    lda #$31
+    sta $0314
+    lda #$ea
+    sta $0315
     lda #$01
     sta $d019
     lsr
@@ -2425,9 +2425,6 @@ CLK_ENTER:
     lda CLK_SAVEBG
     sta $d021
     jmp CLK_ECIA
-CLK_EN0:
-    sec
-    rts
     !fill $f20e - *, $ea
 } else {
 !if QUICKRUN_BUILD {
@@ -4293,9 +4290,9 @@ CLK_WTOP:
     bcc CLK_WTOP
     lda #CLK_BOTL
     sta $d012
+    ldy CLK_SAVEBG
     jsr CLK_TSWAP
-    lda CLK_SAVEBG
-    sta $d021
+    sty $d021
     dec CLK_TICK
     bne CLK_NOTIME
     ldx #CLK_SECFR
