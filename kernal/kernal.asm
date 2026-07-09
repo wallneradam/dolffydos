@@ -46,7 +46,7 @@ CLOCK_ENABLE = ULTIMATE_BUILD
 !if JD_ENABLE { !source "jd_cal.inc" }   ; JiffyDOS fast-LOAD receiver calibration (JT_*)
 !if CLOCK_ENABLE {
 CLK_BOTL   = 246
-CLK_TOPL   = 50
+CLK_TOPL   = 16
 CLK_TOPA   = CLK_TOPL-2
 CLK_BGDLY  = 6
 CLK_TOPDLY = 5
