@@ -5,7 +5,7 @@
 ; JiffyDOS serial (per-device) + Ultimate add-ons. This file is the editable
 ; (JiffyDOS fast-receive calibration constants live in jd_cal.inc, sourced below.)
 ; base; it currently still assembles to the faithful upstream DolphinDOS 2 ROM
-; (the Dolffy bake — feature removal, JiffyDOS, rebrand — is applied on top).
+; (the Dolffy bake, i.e. feature removal, JiffyDOS, rebrand, is applied on top).
 ; =============================================
 ;
 ; ACME assembler format.
@@ -1737,6 +1737,10 @@ CLK_LEDSET:
     !byte $07                                ; $636a (undefined opcode)
 !if QUICKRUN_BUILD {
 QUICKRUN_STRING:
+    ; NOTE (needs an emulator check): $61 is an UNSHIFTED 'a'. A CBM BASIC keyword
+    ; abbreviation needs the next letter SHIFTED ("LO" + SHIFT-A = $c1), and "LOa"
+    ; is not the full keyword "LOAD" either, so as written the crunch step should
+    ; not produce a LOAD token. If that is the case, $61 was meant to be $c1.
     !byte $4c,$4f,$61,$0d,$53,$59,$53,$0d   ; "LOa", CR, "SYS", CR
     !byte $00
 } else {
@@ -2719,7 +2723,7 @@ CLK_CLRSPR:
     sta $c300,x
     inx
     bne CLK_CLRSPR
-    sta $ffff
+    sta $ffff            ; inert store: hits RAM under the KERNAL ROM, no hardware effect
     lda #$30
     sta $d00c
     lda #$48
@@ -2768,6 +2772,10 @@ JS_TX:
     lda JSPARK
     sta $dd00            ; park: CLK-out asserted, DATA-out released, VIC bank preserved
 JS_WAIT:
+    ; Blocks with no STOP-key / timeout escape by design: this is the fast-SAVE
+    ; flow-control handshake, and the drive dictates the cadence. A STOP poll here
+    ; would add jitter to the cycle-critical send core and desync the byte protocol
+    ; (JD_LOOPCHK can afford its watchdog because it runs before the burst, not in it).
     lda $dd00
     and #$80             ; DATA-in: drive asserts (=0) while busy writing a sector
     beq JS_WAIT          ; spin while busy; steady state = released -> fall through
@@ -3796,7 +3804,7 @@ CLK_HAVE:
 !if CLOCK_ENABLE {
 CLK_CLOSED:
     lda #$00
-    sta $ffff
+    sta $ffff            ; inert store: hits RAM under the KERNAL ROM, no hardware effect
     lda CLK_ACTIVE
     sta $d011
     rts

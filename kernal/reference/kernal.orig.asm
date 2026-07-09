@@ -4,7 +4,7 @@
 ; Project "Dolffy DOS" (Dolphin + Jiffy): DolphinDOS parallel disk speed +
 ; JiffyDOS serial (per-device) + Ultimate add-ons. This file is the editable
 ; base; it currently still assembles to the faithful upstream DolphinDOS 2 ROM
-; (the Dolffy bake — feature removal, JiffyDOS, rebrand — is applied on top).
+; (the Dolffy bake, i.e. feature removal, JiffyDOS, rebrand, is applied on top).
 ; =============================================
 ;
 ; ACME assembler format.

@@ -1,14 +1,14 @@
-# Dolffy DOS — usable free ROM space (current map)
+# Dolffy DOS: usable free ROM space (current map)
 
 Live map of the overwritable holes in the **current** plain/stable
 `kernal/rom/dolffy.rom`, origin `$E000`, fixed 8192 bytes. These are the bytes the
-DolphinDOS-2 feature removal (the "bake") freed — available for further add-ons.
+DolphinDOS-2 feature removal (the "bake") freed, available for further add-ons.
 
 `file_offset = addr - $E000`. A region counts as free only if it is `$EA`/`$00`
 fill that diverges from the pristine DolphinDOS-2 base (`kernal/reference/dolphindos2-faithful-b3b0.rom`).
 Regenerate this map after any bake or feature change; see the one-liner at the bottom.
 
-**Total free: 674 bytes in 28 regions.** The ROM stays exactly 8192 bytes — you
+**Total free: 674 bytes in 28 regions.** The ROM stays exactly 8192 bytes, you
 cannot shrink the file, only fill these holes (use `jmp` glue to span them).
 
 The JiffyDOS fast serial work (M1 LOAD + M2 SAVE + M3 detection + GEOS-safe
@@ -62,7 +62,7 @@ across six holes (see "Now in use" below).
 |   34 | `$F533-$F554`  |
 |   32 | `$FCAA-$FCC9`  |
 
-## Now in use — JiffyDOS fast-serial code (do NOT overwrite)
+## Now in use: JiffyDOS fast-serial code (do NOT overwrite)
 
 Six pre-JiffyDOS holes now hold live code (gated by `JD_ENABLE`). Each is only
 partly filled; the leftover bytes are the `$Fxxx` slack rows in the free table
@@ -70,18 +70,18 @@ above. Listed so the next add-on does not reclaim the used part.
 
 | Original hole         | Used | Free | Routine                                                      |
 | --------------------- | ---- | ---- | ------------------------------------------------------------ |
-| `$F005-$F08D` (137)   |  112 |   25 | `JT_GATE` + `JS_PREP` + `DIRCHK` — LOAD gate + GEOS-safe send-slot prep + `$`-dir relocate guard |
-| `$F42B-$F494` (106)   |   87 |   19 | `JS_TX` — fast-SAVE send core (sync + 4 slots + EOI marker)  |
-| `$F9E2-$FA6A` (137)   |   85 |   52 | `JD_LOOPCHK`/`JD_DOPROBE`/`JD_CAP` — in-band detection probe |
-| `$FAC0-$FB10` (81)    |   55 |   26 | `JS_GATE` + `JS_T3`/`JS_T4` slot tables — fast-SAVE byte fork |
-| `$FB1A-$FB8D` (116)   |   51 |   65 | `JD_BANKSET`/`JS_BANKSET` — VIC-bank-preserving `$DD00` setup |
-| `$FBA6-$FC3E` (153)   |  112 |   41 | `JT_RX` — fast-LOAD receive core (cycle-counted 4×2-bit reads) |
+| `$F005-$F08D` (137)   |  112 |   25 | `JT_GATE` + `JS_PREP` + `DIRCHK`: LOAD gate + GEOS-safe send-slot prep + `$`-dir relocate guard |
+| `$F42B-$F494` (106)   |   87 |   19 | `JS_TX`: fast-SAVE send core (sync + 4 slots + EOI marker)  |
+| `$F9E2-$FA6A` (137)   |   85 |   52 | `JD_LOOPCHK`/`JD_DOPROBE`/`JD_CAP`: in-band detection probe |
+| `$FAC0-$FB10` (81)    |   55 |   26 | `JS_GATE` + `JS_T3`/`JS_T4` slot tables: fast-SAVE byte fork |
+| `$FB1A-$FB8D` (116)   |   51 |   65 | `JD_BANKSET`/`JS_BANKSET`: VIC-bank-preserving `$DD00` setup |
+| `$FBA6-$FC3E` (153)   |  112 |   41 | `JT_RX`: fast-LOAD receive core (cycle-counted 4×2-bit reads) |
 | **totals**            |  502 |  228 |                                                              |
 
 Plus a 4-byte splice at `$ED8E` (`jmp JD_LOOPCHK`) and the `JD_CAP` capture at
 `$ED5F` (both inside the live IEC command-send loop, not in any hole).
 
-## Now in use — `@` directory wedge
+## Now in use: `@` directory wedge
 
 The old DolphinDOS `@`/`&`/`*` wedge body at `$F775-$F816` has been replaced with
 a focused non-destructive directory streamer. `$E38E` jumps to `$F775`; `$F775-$F816`
@@ -93,7 +93,7 @@ checks `$90` after directory line-header and filename-byte reads so EOF, timeout
 or missing drive 9 cannot loop forever. `$E115` remains stock; the old `&`, `*`,
 quoted-load helper paths, and incidental `@$8` spelling were not restored.
 
-## Hazards — live bytes inside/adjacent to the holes (do NOT overwrite)
+## Hazards: live bytes inside/adjacent to the holes (do NOT overwrite)
 
 | Keep            | Why                                                                 |
 | --------------- | ------------------------------------------------------------------- |

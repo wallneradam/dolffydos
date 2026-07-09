@@ -1,11 +1,11 @@
-# Dolffy DOS — C64 KERNAL
+# Dolffy DOS: C64 KERNAL
 
 **Dolffy DOS** (Dolphin + Jiffy) is a custom Commodore 64 KERNAL ROM that aims to
 combine:
 
 - **DolphinDOS** parallel disk speed on the cabled drive (drive 8),
 - the **JiffyDOS** serial fast protocol on the other drive(s) (drive 9; and as a
-  fallback for drive 8 when no parallel cable is present) — per-device autodetect
+  fallback for drive 8 when no parallel cable is present), per-device autodetect
   (parallel > JiffyDOS-serial > stock serial),
 - **Ultimate** add-ons (RTC border clock, shift-lock indicator, more later).
 
@@ -17,24 +17,27 @@ protocol documentation (see *Provenance and licensing*).
 ## Build
 
 ```
-make            # assembles both raw, headerless 8192-byte images
+make            # assembles all three raw, headerless 8192-byte images
 make plain      # assembles rom/dolffy.rom (stable base)
+make quickrun   # assembles rom/dolffy-quickrun.rom (plain plus C=+RUN/STOP)
 make ultimate   # assembles rom/dolffy-ultimate.rom
-make verify     # checks the build still equals the upstream faithful base
-                # (MD5 b3b0fa84…)
+make verify     # assembles the preserved reference source and checks it still
+                # equals the upstream faithful base (MD5 b3b0fa84…)
 ```
 
 Requires the [ACME](https://sourceforge.net/projects/acme-crossass/) cross-assembler
 (`brew install acme` on macOS; tested with 0.97). The stable `plain` build is
-`rom/dolffy.rom`; the Ultimate-specific build is `rom/dolffy-ultimate.rom`. Either
-raw ROM is usable directly as a C64 KERNAL ROM (e.g. the Ultimate / C64U "Kernal
-ROM" config slot, or VICE `-kernal`).
+`rom/dolffy.rom`, `rom/dolffy-quickrun.rom` adds the C=+RUN/STOP shortcut, and
+`rom/dolffy-ultimate.rom` is the Ultimate build. Any of the raw ROMs is usable
+directly as a C64 KERNAL ROM (e.g. the Ultimate / C64U "Kernal ROM" config slot,
+or VICE `-kernal`).
 
-`make verify` proves the `$E000` relabel is faithful; it passes only on the pristine
-relabeled base. Now that the Dolffy bake (DolphinDOS feature removal, the Ultimate
-boot-banner patch, more to come) has diverged from upstream, it no longer matches the
-live build (currently MD5 `25cd89d3…`) — the pristine base is preserved verbatim in
-`reference/`, and what the bake removed is documented under the project-root `docs/`.
+`make verify` proves the relabel is still faithful. The live `kernal.asm` has
+diverged from upstream (the Dolffy bake: DolphinDOS feature removal, JiffyDOS, the
+Ultimate extras), so `verify` assembles the preserved reference source
+`reference/kernal.orig.asm` and checks that IT still reproduces the faithful base
+(MD5 `b3b0fa84…`). For reference, the current live plain build is MD5 `1733d391…`.
+What the bake removed is documented under the project-root `docs/`.
 
 ## The $E000 relabel
 
@@ -50,7 +53,7 @@ shifted by `+$897C`; absolute operands and data are untouched. Transform:
 ## Layout
 
 ```
-kernal.asm          the $E000 DolphinDOS 2 source — being turned into Dolffy DOS
+kernal.asm          the $E000 DolphinDOS 2 source, being turned into Dolffy DOS
 rom/                build output (dolffy.rom, dolffy-ultimate.rom)
 tools/relabel.py    the $5684 -> $E000 byte-exact relabel transform
 reference/          pristine upstream base, preserved verbatim:
@@ -74,13 +77,13 @@ DolphinDOS firmware is third-party.
   <http://e4aws.silverdr.com/projects/dolphindos2/>.
 - JiffyDOS support is being **reimplemented clean-room** from the protocol
   documentation in [`MEGA65/open-roms`](https://github.com/MEGA65/open-roms)
-  (`doc/Protocol-JiffyDOS.md`) and public reverse-engineering references — no copyleft
+  (`doc/Protocol-JiffyDOS.md`) and public reverse-engineering references, no copyleft
   source is copied. The JiffyDOS *wire protocol* is not copyrightable; the *drive-side*
   JiffyDOS ROM is a separate, proprietary component (RETRO Innovations, © Mark Fellows)
   that must be licensed independently.
 
 **License:** Wallner Ádám's own contributions to Dolffy DOS are released under the
-**MIT License** — see `../LICENSE` and the scope note in `../NOTICE`. The MIT grant
+**MIT License**: see `../LICENSE` and the scope note in `../NOTICE`. The MIT grant
 covers only those contributions, not the upstream Commodore C64 KERNAL or the
 DolphinDOS code beneath them.
 
@@ -88,10 +91,10 @@ DolphinDOS code beneath them.
 
 With thanks to:
 
-- The original **DolphinDOS** authors — the Frankfurt C64 enthusiast group around
+- The original **DolphinDOS** authors, the Frankfurt C64 enthusiast group around
   **Günther Jilg** (hardware and concept) and **Jan Bubela** (board development, later
   the business side), with **Michael Priske** and **Ralf Köhler**. DolphinDOS first
   shipped in January 1986 and was distributed in the UK by Evesham Micros.
-- **silverdr** — the DolphinDOS 2 preservation project and faithful binaries.
-- **donnchawp** — the ACME disassembly this source is built on.
-- The **MEGA65 / open-roms** project — for the openly documented JiffyDOS protocol.
+- **silverdr**: the DolphinDOS 2 preservation project and faithful binaries.
+- **donnchawp**: the ACME disassembly this source is built on.
+- The **MEGA65 / open-roms** project, for the openly documented JiffyDOS protocol.

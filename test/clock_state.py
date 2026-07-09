@@ -39,7 +39,7 @@ SNAPSHOT_CODE = bytes([
 FIELDS = ("d020", "d021", "d011", "d015", "d01a", "irq_lo", "irq_hi", "marker")
 
 
-def run_case(name, kernal, workdir):
+def run_case(name, kernal, workdir, expect_clock):
     disk = os.path.join(workdir, f"clock_state_{name}.d64")
     H.make_disk(disk, H.ramp_prg(0x0801, 16), name="dummy")
 
@@ -49,39 +49,46 @@ def run_case(name, kernal, workdir):
         v.memset(RESULT_ADDR, bytes([0]) * len(FIELDS))
 
         v.type_line("POKE53280,0:POKE53281,0")
-        v.free_run(float(os.environ.get("SETTLE", "0.5")))
+        v.free_run(H.env_float("SETTLE", 0.5))
         before = {"d020": v.g(0xD020), "d021": v.g(0xD021)}
 
         v.type_line(f"SYS{CODE_ADDR}")
-        v.free_run(float(os.environ.get("SETTLE", "0.5")))
+        v.free_run(H.env_float("SETTLE", 0.5))
         raw = bytes(v.memget(RESULT_ADDR, RESULT_ADDR + len(FIELDS) - 1))
     finally:
         v.close()
 
     got = dict(zip(FIELDS, raw))
-    ok = (
+    # Positive precondition: on the Ultimate build the border clock must actually
+    # be live (sprites enabled and the raster IRQ armed) at handoff. Without this
+    # the "colors untouched" check below would pass on a build whose clock never
+    # runs, proving nothing.
+    clock_live = got.get("d015", 0) != 0 and (got.get("d01a", 0) & 0x01) != 0
+    handoff_ok = (
         got.get("marker") == 0x42
         and (got.get("d020", 0) & 0x0F) == 0
         and (got.get("d021", 0) & 0x0F) == 0
     )
-    return ok, before, got
+    ok = handoff_ok and (clock_live or not expect_clock)
+    return ok, before, got, clock_live
 
 
 def main():
     workdir = H.tempdir()
     cases = [
-        ("plain", PLAIN_ROM),
-        ("ultimate", ULTIMATE_ROM),
+        ("plain", PLAIN_ROM, False),
+        ("ultimate", ULTIMATE_ROM, True),
     ]
     fails = 0
     print(f"work = {workdir}")
-    for name, kernal in cases:
-        ok, before, got = run_case(name, kernal, workdir)
+    for name, kernal, expect_clock in cases:
+        ok, before, got, clock_live = run_case(name, kernal, workdir, expect_clock)
         if not ok:
             fails += 1
         irq = (got.get("irq_hi", 0) << 8) | got.get("irq_lo", 0)
+        clock = "live" if clock_live else ("off" if not expect_clock else "NOT-LIVE")
         print(
-            f"{name:<8} {'PASS' if ok else 'FAIL'} "
+            f"{name:<8} {'PASS' if ok else 'FAIL'} clock={clock} "
             f"before d020/d021=${before['d020']:02x}/${before['d021']:02x} "
             f"sys d020/d021=${got.get('d020', 0):02x}/${got.get('d021', 0):02x} "
             f"colors={got.get('d020', 0) & 0x0f}/{got.get('d021', 0) & 0x0f} "

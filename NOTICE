@@ -4,12 +4,12 @@ The MIT License in `LICENSE` applies to the original contributions of
 Adam Wallner to this project: the "Dolffy DOS" modifications to the KERNAL
 source, the build tooling, and the documentation under `docs/`.
 
-It does NOT — and cannot — license the pre-existing components this project is
+It does NOT, and cannot, license the pre-existing components this project is
 built upon. Those remain under their own rights holders:
 
-- The Commodore C64 KERNAL — the large, unmodified portion of the ROM image.
+- The Commodore C64 KERNAL, the large, unmodified portion of the ROM image.
   Copyright Commodore/CBM and its successors.
-- The original DolphinDOS 2 — copyright its original authors, all rights
+- The original DolphinDOS 2, copyright its original authors, all rights
   reserved.
 - The DolphinDOS 2 disassembly used as the starting point
   (https://github.com/donnchawp/DolphinDOS2), released under the Unlicense.
