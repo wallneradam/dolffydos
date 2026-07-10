@@ -2406,19 +2406,27 @@ CLK_PREHI:
     pla                                      ; $f1db
     jmp $f713                                ; $f1dc
 !if CLOCK_ENABLE {
+; CLK_ENTER must be a no-op once the clock left raster mode (CLK_MODE != 0): it runs on
+; EVERY LOAD/SAVE/OPEN, and a locked-mode re-run would stomp the VIC bank/$D011/$D021 of a
+; graphics-mode program and overwrite $033F under a program that keeps state there
+; (Gauguin64 album signature). Armed mode is always CLK_MODE=0 (CLK_INIT), so the full
+; teardown still runs exactly once at the armed->locked transition.
+; No $D019 ack here: with $D01A cleared a latched bit cannot assert IRQ (and the VIC
+; re-latches it every frame at the raster compare anyway); CLK_RASTER re-acks under SEI.
+; The hole is byte-full (47/47), so the guard borrows the stock rts at $f1c9.
 CLK_ENTER:
+    lda CLK_MODE
+    bne $f1c9
     lda #$80
     sta CLK_MODE
+    asl
+    sta $d015
+    sta $d01a
     jsr CLK_CLOSED
     lda #$31
     sta $0314
     lda #$ea
     sta $0315
-    lda #$01
-    sta $d019
-    lsr
-    sta $d015
-    sta $d01a
     lda $dd00
     ora #$03
     sta $dd00
