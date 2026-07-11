@@ -2,10 +2,13 @@
 """Apply BLANK/STUB ops to kernal.asm by byte-exact line replacement.
 No labels exist in the source, so correctness == byte-exactness. The script
 ALSO predicts the exact resulting ROM (baseline + ops) so the ACME build can be
-proven correct by an exact compare."""
-import re, sys
+proven correct by an exact compare.
 
-SCR   = "/private/tmp/claude-501/-Users-wallner-Developer-ByCategory-C64-Ultimate-WallnerDOS/46ac6d7b-f49d-41cb-b1a1-73f64300466e/scratchpad"
+One-shot historical tool that produced the original bake. Paths resolve next to
+this script by default; override the working directory with DOLFFY_SCRATCH."""
+import os, re
+
+SCR   = os.environ.get("DOLFFY_SCRATCH", os.path.dirname(os.path.abspath(__file__)))
 ASM   = SCR+"/kernal.orig.asm"   # pristine source (clean address map)
 BASE  = SCR+"/baseline.rom"
 OUTA  = SCR+"/kernal.all.asm"

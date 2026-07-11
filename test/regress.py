@@ -26,8 +26,8 @@ Exit code is non-zero if any executed check fails.
 import os, sys, struct, time
 import harness as H
 
-LOAD_N = int(os.environ.get("LOAD_N", "16384"))
-SAVE_N = int(os.environ.get("SAVE_N", "2000"))
+LOAD_N = H.env_int("LOAD_N", 16384)
+SAVE_N = H.env_int("SAVE_N", 2000)
 LOAD_ADDR = 0x4001
 
 MODES = {
@@ -58,7 +58,7 @@ def test_load(mode, workdir):
     try:
         v.erase(0x0801, LOAD_ADDR + len(body))     # clear both relocate + header targets
         v.type_line('LOAD"*",8,1')
-        v.free_run(float(os.environ.get("FREERUN", "6")))
+        v.free_run(H.env_float("FREERUN", 6))
         got = bytearray()
         a = LOAD_ADDR
         while a < LOAD_ADDR + len(body):
@@ -85,10 +85,10 @@ def test_save(mode, workdir):
         for p in (0x002d, 0x002f, 0x0031):
             v.memset(p, struct.pack("<H", end))
         v.type_line('SAVE"T",8')
-        v.free_run(float(os.environ.get("FREERUN", "6")))
+        v.free_run(H.env_float("FREERUN", 6))
         v.quit_flush()
     finally:
-        pass
+        v.close()
     got, err = H.read_disk_file(disk, "t")
     if got is None:
         return False, f"extract failed: {err}"

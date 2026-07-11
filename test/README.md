@@ -3,7 +3,7 @@
 Black-box LOAD/SAVE regression for the custom KERNAL (`kernal/rom/dolffy.rom`),
 driven through VICE's binary monitor. Each test pokes a known payload into C64
 RAM, issues a BASIC `LOAD`/`SAVE`, runs the emulator free, and compares the
-result byte-for-byte. Drive ROMs are used only as opaque test targets — no drive
+result byte-for-byte. Drive ROMs are used only as opaque test targets, no drive
 or KERNAL code is read or embedded (clean-room safe).
 
 The three per-device transfer paths that must all stay byte-exact:
@@ -18,7 +18,8 @@ The three per-device transfer paths that must all stay byte-exact:
 
 - `x64sc` and `c1541` from VICE 3.x on `PATH` (or set `X64SC` / `C1541`).
 - VICE's bundled C64 ROMs (`basic-901226-01.bin`, `chargen-901225-01.bin`);
-  found automatically under `/opt/homebrew/share/vice/C64` or set `VICE_C64_DIR`.
+  looked up in the common VICE data directories (macOS Homebrew and Linux), or
+  set `VICE_C64_DIR`.
 - A built `kernal/rom/dolffy.rom` (`cd kernal && touch kernal.asm && make`).
 - For the `jiffy-serial` and `dolphin-parallel` modes: the respective **drive
   ROMs**, which are proprietary and **not** included here. Point the env vars at
@@ -47,13 +48,13 @@ extracted files) go to a system temp dir; nothing is written into the repo.
 
 ## What each check proves
 
-- **LOAD** — `LOAD"*",8,1` of a PRG saved at `$4001` must land byte-exact at
+- **LOAD**: `LOAD"*",8,1` of a PRG saved at `$4001` must land byte-exact at
   `$4001`. Because the secondary address `,1` means "load to the file's own
   address", a mis-handled `,1` relocates to BASIC start `$0801` and leaves
   `$4001` unwritten → fail. This is the check that caught the X-register clobber
   in the JiffyDOS detection probe (the probe used X as its window counter, but
   the stock LOAD carries the `,1` flag in X across the `TALK`/`TKSA` calls).
-- **SAVE** — `SAVE"T",8` of a known payload, extracted with `c1541`, must be
+- **SAVE**: `SAVE"T",8` of a known payload, extracted with `c1541`, must be
   byte-exact (atom-stable).
 
 ## Files

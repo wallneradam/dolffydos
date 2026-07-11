@@ -5,13 +5,15 @@ LOAD/SAVE, runs the emulator free, and compares the result byte-for-byte. Drive
 ROMs are referenced solely as opaque test targets (file paths supplied by the
 user); no drive or KERNAL code is read or embedded here.
 
-Configuration (all via environment, sensible defaults for a homebrew macOS VICE):
+Configuration (all via environment). Tools are found on PATH first, with common
+macOS Homebrew and Linux locations as fallbacks:
 
-  X64SC              path to x64sc (default: PATH / /opt/homebrew/bin/x64sc)
-  C1541              path to c1541 (default: PATH / /opt/homebrew/bin/c1541)
+  X64SC              path to x64sc (default: PATH, then Homebrew/Linux locations)
+  C1541              path to c1541 (default: PATH, then Homebrew/Linux locations)
   DOLFFY_ROM         C64 KERNAL under test (default: <repo>/kernal/rom/dolffy.rom)
   VICE_C64_DIR       dir with basic-901226-01.bin + chargen-901225-01.bin
-                     (default: /opt/homebrew/share/vice/C64; auto-skipped if absent)
+                     (default: first existing of common VICE data dirs; the flags
+                     are omitted, not forced, when the files are absent)
   JIFFY_DRIVE_ROM    JiffyDOS 1541 drive ROM (proprietary; user-supplied). Empty -> skip jiffy tests.
   DOLPHIN_DRIVE_ROM  DolphinDOS 1541 drive ROM (proprietary; user-supplied). Empty -> skip parallel tests.
 
@@ -29,15 +31,31 @@ def _load_dotenv():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     if not os.path.exists(path):
         return
-    for line in open(path):
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    with open(path) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
 _load_dotenv()
+
+
+def env_int(name, default):
+    """os.environ int with a safe fallback (never raises at import on bad input)."""
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def env_float(name, default):
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return float(default)
 
 
 def _which(name, *fallbacks):
@@ -49,10 +67,18 @@ def _which(name, *fallbacks):
             return f
     return name
 
-X64SC = os.environ.get("X64SC", _which("x64sc", "/opt/homebrew/bin/x64sc"))
-C1541 = os.environ.get("C1541", _which("c1541", "/opt/homebrew/bin/c1541"))
+
+def _first_existing(*paths):
+    for p in paths:
+        if os.path.isdir(p):
+            return p
+    return paths[0]
+
+X64SC = os.environ.get("X64SC", _which("x64sc", "/opt/homebrew/bin/x64sc", "/usr/local/bin/x64sc", "/usr/bin/x64sc"))
+C1541 = os.environ.get("C1541", _which("c1541", "/opt/homebrew/bin/c1541", "/usr/local/bin/c1541", "/usr/bin/c1541"))
 DOLFFY_ROM = os.environ.get("DOLFFY_ROM", os.path.join(ROOT, "kernal", "rom", "dolffy.rom"))
-VICE_C64_DIR = os.environ.get("VICE_C64_DIR", "/opt/homebrew/share/vice/C64")
+VICE_C64_DIR = os.environ.get("VICE_C64_DIR", _first_existing(
+    "/opt/homebrew/share/vice/C64", "/usr/local/share/vice/C64", "/usr/share/vice/C64"))
 JIFFY_DRIVE_ROM = os.environ.get("JIFFY_DRIVE_ROM", "")
 DOLPHIN_DRIVE_ROM = os.environ.get("DOLPHIN_DRIVE_ROM", "")
 
@@ -88,7 +114,8 @@ def read_disk_file(path, name, tries=4):
         r = subprocess.run([C1541, "-attach", path, "-read", name.lower(), out],
                            capture_output=True, text=True)
         if os.path.exists(out) and os.path.getsize(out) > 0:
-            data = open(out, "rb").read()
+            with open(out, "rb") as fh:
+                data = fh.read()
             os.remove(out)
             return data, ""
         last = (r.stdout + r.stderr).strip().splitlines()[-1:] or [""]
@@ -105,12 +132,12 @@ class Vice:
       drive_rom   path to a -dos1541 ROM, or None to use VICE's bundled stock 1541
       drive_ram   True -> add the DolphinDOS drive RAM expansion ($2000/$4000/$6000)
     """
-    _next_port = 6700
 
     def __init__(self, disk, kernal=None, drive_rom=None, cable="0",
                  drive_ram=False, userport_cable=False, port=None, video="pal"):
         self.disk = disk
-        self.port = port or Vice._alloc_port()
+        self.s = None
+        self.port = port or self._free_port()
         kernal = kernal or DOLFFY_ROM
         args = [X64SC, "-default", "-kernal", kernal]
         if video == "ntsc":
@@ -134,18 +161,28 @@ class Vice:
                  "-binarymonitor", "-binarymonitoraddress", f"ip4://127.0.0.1:{self.port}"]
         self.args = args
         self.proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-        self.s = self._connect()
-        self._rid = 0
-        self.drain(2.5)   # let the C64 boot
+        try:
+            self.s = self._connect()
+            self._rid = 0
+            self.drain(2.5)   # let the C64 boot
+        except BaseException:
+            self.close()      # never leak the emulator if boot/connect fails
+            raise
 
-    @classmethod
-    def _alloc_port(cls):
-        p = cls._next_port
-        cls._next_port += 1
-        return p
+    @staticmethod
+    def _free_port():
+        """Ask the OS for a free loopback port instead of a fixed counter, so a
+        leaked emulator from a prior run cannot be reconnected by accident."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", 0))
+            return probe.getsockname()[1]
 
     def _connect(self):
         for _ in range(200):
+            if self.proc.poll() is not None:
+                raise SystemExit(
+                    f"x64sc exited (code {self.proc.returncode}) before the monitor "
+                    f"came up on :{self.port}; check X64SC and the ROM paths")
             try:
                 return socket.create_connection(("127.0.0.1", self.port), timeout=0.5)
             except OSError:
@@ -169,25 +206,47 @@ class Vice:
             pass
         return out
 
+    # MEM_GET/MEM_SET request body: side-effects, start, end, memspace, bank.
+    # memspace 0 = main, bank 0 = VICE's "default" bank, which mirrors the CPU's
+    # current banking. With I/O mapped (the normal state while user ML runs) this
+    # reaches the VIC/CIA registers at $D000-$DFFF as the CPU itself sees them,
+    # which is what every clock-register assertion depends on.
     def memset(self, a, d):
         self.cmd(0x02, struct.pack("<BHHBH", 0, a, a + len(d) - 1, 0, 0) + d)
 
     def memget(self, a0, a1):
         self.cmd(0x01, struct.pack("<BHHBH", 0, a0, a1, 0, 0))
-        time.sleep(0.005)
-        d = self.drain(0.2)
-        i = 0
-        while i + 12 <= len(d):
-            if d[i] != 0x02:
-                i += 1
-                continue
-            ln = struct.unpack("<I", d[i + 2:i + 6])[0]
-            rt = d[i + 6]
-            body = d[i + 12:i + 12 + ln]
-            if rt == 0x01:
-                bl = struct.unpack("<H", body[0:2])[0]
-                return body[2:2 + bl]
-            i += 12 + ln
+        body = self._response(self._rid, want_type=0x01)
+        if len(body) < 2:
+            return b""
+        n = struct.unpack("<H", body[0:2])[0]
+        return body[2:2 + n]
+
+    def _response(self, rid, want_type, deadline=1.5):
+        """Accumulate monitor bytes until a complete response with the matching
+        request id and type arrives, or the deadline passes. Validates the STX +
+        API-version framing and skips unrelated responses or async events, so a
+        stray 0x02 or an interleaved event cannot cause a mis-parse or a partial
+        read. Returns b"" on timeout (callers treat that as "no data")."""
+        buf = b""
+        end = time.time() + deadline
+        while time.time() < end:
+            buf += self.drain(0.1)
+            i = 0
+            while i + 12 <= len(buf):
+                if buf[i] != 0x02 or buf[i + 1] != 0x02:
+                    i += 1
+                    continue
+                ln = struct.unpack("<I", buf[i + 2:i + 6])[0]
+                if ln > 0x20000:        # implausible length: a false STX match, resync one byte
+                    i += 1
+                    continue
+                if i + 12 + ln > len(buf):
+                    break   # header seen, body not fully arrived yet
+                if struct.unpack("<I", buf[i + 8:i + 12])[0] == rid and buf[i + 6] == want_type:
+                    return buf[i + 12:i + 12 + ln]
+                i += 12 + ln
+            buf = buf[i:]
         return b""
 
     def g(self, a):
@@ -222,7 +281,8 @@ class Vice:
         return bytes(self.memget(0x0400, 0x07e7))
 
     def quit_flush(self):
-        """Resume, settle, then MON_CMD_QUIT so VICE writes back the d64."""
+        """Resume, settle, then MON_CMD_QUIT so VICE writes back the d64, then
+        reap the process and close the socket."""
         self.cmd(0xaa)
         time.sleep(1.0)
         try:
@@ -233,13 +293,25 @@ class Vice:
             self.proc.wait(timeout=5)
         except Exception:
             self.proc.kill()
+        self._close_socket()
 
     def close(self):
+        """Idempotent teardown: reap the emulator and close the socket. Safe to
+        call after quit_flush() or on a half-constructed session."""
         try:
             self.proc.terminate()
             self.proc.wait(timeout=3)
         except Exception:
             self.proc.kill()
+        self._close_socket()
+
+    def _close_socket(self):
+        if self.s is not None:
+            try:
+                self.s.close()
+            except OSError:
+                pass
+            self.s = None
 
 
 def tempdir():

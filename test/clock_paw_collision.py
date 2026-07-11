@@ -31,7 +31,7 @@ SNAPSHOT_CODE = bytes([
 ])
 
 
-def run_case(name, kernal, workdir):
+def run_case(name, kernal, workdir, expect_clock):
     disk = os.path.join(workdir, f"clock_paw_collision_{name}.d64")
     H.make_disk(disk, H.ramp_prg(0x0801, 16), name="dummy")
 
@@ -46,25 +46,32 @@ def run_case(name, kernal, workdir):
         v.memset(PAW_STATE_ADDR, PAW_STATE)
 
         v.type_line(f"SYS{CODE_ADDR}")
-        v.free_run(float(os.environ.get("SETTLE", "0.5")))
+        v.free_run(H.env_float("SETTLE", 0.5))
         got = bytes(v.memget(RESULT_ADDR, RESULT_ADDR + len(PAW_STATE) - 1))
         live = bytes(v.memget(PAW_STATE_ADDR, PAW_STATE_ADDR + len(PAW_STATE) - 1))
+        # Positive precondition: on the Ultimate build the clock must actually be
+        # running (sprites on, raster IRQ armed) for "did not touch $CFF3" to mean
+        # anything. A build whose clock never runs cannot pass this.
+        clock_live = v.g(0xD015) != 0 and (v.g(0xD01A) & 0x01) != 0
     finally:
         v.close()
 
-    return got == PAW_STATE and live == PAW_STATE, got, live
+    intact = got == PAW_STATE and live == PAW_STATE
+    ok = intact and (clock_live or not expect_clock)
+    return ok, got, live, clock_live
 
 
 def main():
     workdir = H.tempdir()
     fails = 0
     print(f"work = {workdir}")
-    for name, kernal in [("plain", PLAIN_ROM), ("ultimate", ULTIMATE_ROM)]:
-        ok, got, live = run_case(name, kernal, workdir)
+    for name, kernal, expect_clock in [("plain", PLAIN_ROM, False), ("ultimate", ULTIMATE_ROM, True)]:
+        ok, got, live, clock_live = run_case(name, kernal, workdir, expect_clock)
         if not ok:
             fails += 1
+        clock = "live" if clock_live else ("off" if not expect_clock else "NOT-LIVE")
         print(
-            f"{name:<8} {'PASS' if ok else 'FAIL'} "
+            f"{name:<8} {'PASS' if ok else 'FAIL'} clock={clock} "
             f"saw={got.hex(' ')} live={live.hex(' ')}"
         )
     sys.exit(1 if fails else 0)
