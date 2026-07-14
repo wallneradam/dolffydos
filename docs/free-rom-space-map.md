@@ -81,17 +81,65 @@ above. Listed so the next add-on does not reclaim the used part.
 Plus a 4-byte splice at `$ED8E` (`jmp JD_LOOPCHK`) and the `JD_CAP` capture at
 `$ED5F` (both inside the live IEC command-send loop, not in any hole).
 
+## Hyper variants — additional hole usage
+
+The plain free map above remains the allocation source for future common code.
+`dolffy-hyper.rom` and `dolffy-hyper-quickrun.rom` additionally use the following
+parts for SoftwareIEC DMA LOAD/SAVE and direct `@$10` / `@$11` directory
+streaming. The `$F1DF-$F20D` Quickrun region is not used, so Hyper and Quickrun
+can be enabled together.
+
+| Range          | Bytes | Hyper use                                         |
+| -------------- | ----: | ------------------------------------------------- |
+| `$F075-$F08B`  |    23 | UCI directory byte source                         |
+| `$F187-$F192`  |    12 | CHKIN launch and first-block wait                 |
+| `$F227-$F234`  |    14 | OPEN completion and CHKIN setup                   |
+| `$F26C-$F278`  |    13 | OPEN command frame and directory name             |
+| `$F387-$F3A8`  |    34 | `@$9` / `@$10` / `@$11` device parser            |
+| `$F3AE-$F3D4`  |    39 | SAVE parameters and completion                    |
+| `$F487-$F494`  |    14 | UCI identity half of directory gate               |
+| `$F533-$F553`  |    33 | response handlers and Bus-ID half of gate         |
+| `$F662-$F674`  |    19 | UCI directory channel close                       |
+| `$F72C-$F734`  |     9 | final directory-block EOI                         |
+| `$F815`        |     1 | one-byte expansion of the shared `@` wedge        |
+| `$F8AF-$F8CA`  |    28 | SAVE completion and directory chunk state         |
+| `$FA37-$FA69`  |    51 | LOAD_EX command and result                        |
+| `$FAF7-$FB0F`  |    25 | directory chunk refill and empty-block handling   |
+| `$FB1A-$FB2C`  |    19 | empty-response command and DATA_ACC helper        |
+| `$FB61-$FB88`  |    40 | SAVE entry and fallback gate                      |
+| `$FB97-$FB9D`  |     7 | common zero-secondary-address command prefix      |
+| `$FC1B-$FC3B`  |    33 | UCI response drain, acknowledgement, and wait     |
+| `$FCAA-$FCC5`  |    28 | command-state cleanup and prefix helper           |
+| `$FECB-$FF39`  |   111 | LOAD command frames, completion, and filename     |
+
+The default RAM-vector initializer also changes four live bytes at
+`$FD4C-$FD4F`, pointing ILOAD/ISAVE to `$FECB`/`$FB61`. This is deliberate and
+is checked separately from the hole boundaries by `test/hyper_layout.py`.
+
+Hyper also replaces the live cursor-blink block at `$EA40-$EA60`. Its first
+phase uses 24 bytes in `$F1DF-$F1F6` (or `$F1F0-$F207` after Quickrun), while the
+34-byte state selector occupies `$F409-$F42A`, reclaimed by making the
+Ultimate-only Hyper banner static. The cursor uses `$CF=0/1/$80` for original,
+inverse, and inverse-up-arrow states; no additional RAM is reserved. The fixed
+banner consumes the four-byte plain startup slack at `$E42C-$E42F`.
+
+After the SoftwareIEC and cursor allocations, Hyper retains 93 bytes of the
+plain free map; Hyper Quickrun retains 60 bytes.
+
 ## Now in use — `@` directory wedge
 
 The old DolphinDOS `@`/`&`/`*` wedge body at `$F775-$F816` has been replaced with
 a focused non-destructive directory streamer. `$E38E` jumps to `$F775`; `$F775-$F816`
 implements `@$` (drive 8) and `@$9` (drive 9) by opening `"$"` and streaming the
-directory to the screen without loading it into BASIC text memory. Block counts
-are passed to BASIC `$BDCD` as high byte in A, low byte in X; directory-provided
-spacing is preserved with a single CHROUT space after the count. The streamer
-checks `$90` after directory line-header and filename-byte reads so EOF, timeout,
-or missing drive 9 cannot loop forever. `$E115` remains stock; the old `&`, `*`,
-quoted-load helper paths, and incidental `@$8` spelling were not restored.
+directory to the screen without loading it into BASIC text memory. Hyper builds
+also parse `@$10` and `@$11`; if the number matches `$DF1B`, the same formatter
+reads a chunked SoftwareIEC UCI OPEN/CHKIN stream and closes it through command
+`$14`. Other devices retain the IEC channel path. Block counts are passed to
+BASIC `$BDCD` as high byte in A, low byte in X; directory-provided spacing is
+preserved with a single CHROUT space after the count. The streamer checks `$90`
+after directory line-header and filename-byte reads so EOF, timeout, or a missing
+drive cannot loop forever. `$E115` remains stock; the old `&`, `*`, quoted-load
+helper paths, and incidental `@$8` spelling were not restored.
 
 ## Hazards — live bytes inside/adjacent to the holes (do NOT overwrite)
 

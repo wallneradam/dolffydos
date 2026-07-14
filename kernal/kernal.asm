@@ -37,13 +37,22 @@
 JD_ENABLE = 1
 !ifndef ULTIMATE_BUILD { ULTIMATE_BUILD = 1 } ; 1 = Ultimate add-on build, 0 = plain/stable build
 !ifndef QUICKRUN_BUILD { QUICKRUN_BUILD = 0 } ; 1 = C=+RUN/STOP quickrun build
+!ifndef HYPER_BUILD { HYPER_BUILD = 0 }       ; 1 = Ultimate SoftwareIEC DMA LOAD/SAVE
 !if ULTIMATE_BUILD {
 !if QUICKRUN_BUILD {
     !error "QUICKRUN_BUILD cannot be combined with ULTIMATE_BUILD"
 }
+!if HYPER_BUILD {
+    !error "HYPER_BUILD is plain-based and cannot be combined with ULTIMATE_BUILD"
+}
 }
 CLOCK_ENABLE = ULTIMATE_BUILD
+FIXED_ULTIMATE_BANNER = ULTIMATE_BUILD + HYPER_BUILD
 !if JD_ENABLE { !source "jd_cal.inc" }   ; JiffyDOS fast-LOAD receiver calibration (JT_*)
+!if HYPER_BUILD {
+HSTAT = $0334      ; UCI status bytes (aliases Jiffy scratch; paths are exclusive)
+HDIR = $0337       ; nonzero while the @ wedge reads a UCI directory channel
+}
 !if CLOCK_ENABLE {
 CLK_BOTL   = 246
 CLK_TOPL   = 50
@@ -578,7 +587,7 @@ CLK_DSH    = 6
     lda $2b                                  ; $e422
     ldy $2c                                  ; $e424
     jsr $a408                                ; $e426
-!if ULTIMATE_BUILD {
+!if FIXED_ULTIMATE_BANNER {
     lda #$73                                 ; $e429 print startup banner
     ldy #$e4                                 ; $e42b
     jsr $ab1e                                ; $e42d
@@ -626,7 +635,7 @@ CLK_DSH    = 6
     !text " BASIC BYTES FREE"                ; $e460-$e470
     !byte $0d,$00                            ; $e471-$e472
     !byte $93,$0d                            ; $e473-$e474 clear screen + return
-!if ULTIMATE_BUILD {
+!if FIXED_ULTIMATE_BANNER {
     !text "    **** COMMODORE 64 ULTIMATE ****" ; $e475-$e497
 } else {
     !text "    **** COMMODORE 64 BASIC V2 ****" ; $e475-$e497
@@ -1374,6 +1383,16 @@ CLK_LEDSET:
     bne $ea61                                ; $ea3a
     lda #$14                                 ; $ea3c
     sta $cd                                  ; $ea3e
+!if HYPER_BUILD {
+; Hyper keeps the stock two-phase cursor without SHIFT. With SHIFT or SHIFT
+; LOCK active, $CF advances through 0 (original), 1 (inverse original), and
+; $80 (inverse up-arrow). Any nonzero state remains compatible with the stock
+; key-input path at $E5D6, which restores $CE before accepting a character.
+    ldy $d3                                  ; $ea40
+    ldx $0287                                ; saved character colour
+    jsr HCURSOR                              ; select and draw the current phase
+    !fill $ea61 - *, $ea
+} else {
     ldy $d3                                  ; $ea40
     lsr $cf                                  ; $ea42
     ldx $0287                                ; $ea44
@@ -1388,6 +1407,7 @@ CLK_LEDSET:
     lda $ce                                  ; $ea5a
     eor #$80                                 ; $ea5c
     jsr $ea1c                                ; $ea5e
+}
     lda $01                                  ; $ea61
     and #$10                                 ; $ea63
     beq $ea71                                ; $ea65
@@ -2252,7 +2272,25 @@ CLK_UDONE:
     jmp CLK_USTAT
     !fill $f08e - *, $ea
 } else {
+!if HYPER_BUILD {
+; Directory byte source: normal KERNAL CHRIN for IEC drives, direct UCI
+; response data for the active SoftwareIEC directory channel.
+HAT_GET:
+    lda HDIR
+    bne HAT_GET_UCI
+    jmp $ffcf
+HAT_GET_UCI:
+    lda $df1c
+    bpl HAT_GET_NODATA
+    lda $df1e
+    pha
+    jmp HAT_DATA_NEXT
+HAT_GET_NODATA:
+    jmp HAT_GET_EMPTY
     !fill $f08e - *, $ea
+} else {
+    !fill $f08e - *, $ea
+}
 }
 } else {
     !fill $89, $ea   ; $f005-$f08d BLANK ML-monitor prologue + command loop
@@ -2363,7 +2401,18 @@ CLK_PREHI:
     jmp CLK_PREIO
     !fill $f199 - *, $ea
 } else {
+!if HYPER_BUILD {
+; Final CHKIN setup: execute and leave its first response queued.
+HAT_OPEN_3:
+    lda #$01
+    sta $df1c
+    jsr HWAIT
+    inc HDIR
+    rts
     !fill $f196 - *, $ea
+} else {
+    !fill $f196 - *, $ea
+}
     brk                                      ; $f196
     brk                                      ; $f197
     brk                                      ; $f198
@@ -2447,10 +2496,25 @@ QUICKRUN_COPY:
     bne QUICKRUN_COPY
     jmp $e5cd
 QUICKRUN_LEN = 8
-    !fill $f20e - *, $ea
 } else {
-    !fill $2f, $ea   ; $f1df-$f20d BLANK monitor filename parser
+    ; $f1df-$f20d was the monitor filename parser.
 }
+!if HYPER_BUILD {
+; First cursor phase: preserve the covered character and its colour, then draw
+; the normal inverse cursor. HCURSOR handles the following visible phases.
+HCUR_ON:
+    lda ($d1),y
+    sta $ce
+    inc $cf
+    jsr $ea24
+    lda ($f3),y
+    sta $0287
+    ldx $0286
+    lda $ce
+    eor #$80
+    jmp $ea1c
+}
+    !fill $f20e - *, $ea
 }
     jsr $f30f                                ; $f20e
     beq $f216                                ; $f211
@@ -2476,7 +2540,20 @@ CLK_BSWAP:
     sta $dd00
     rts
 } else {
+!if HYPER_BUILD {
+; OPEN completed with HNAME leaving Y=1 for the one-byte "$" filename. Restore
+; Y=0 so HAT_PREFIX0 appends the directory channel's actual secondary address.
+HAT_OPEN_2:
+    stx $90                ; HNAME leaves X=0: clear KERNAL channel status
+    jsr HAT_EXEC_EMPTY
+    dey
+    ldx #$15
+    jsr HAT_PREFIX0
+    jmp HAT_OPEN_3
+    !fill $f235 - *, $00
+} else {
     !fill $e, $00   ; $f227-$f234 BLANK monitor command-char table
+}
 }
     !byte $3a                                ; $68b9 (undefined opcode)
     rol                                    ; $f236
@@ -2515,7 +2592,19 @@ CLK_PRINTCR:
     jmp $ffd2
     !fill $f279 - *, $ea
 } else {
+!if HYPER_BUILD {
+; OPEN frame: target/command/SA/unused/name. HAT_PREFIX0 emits the first zero;
+; the second is the unused byte expected before the filename at offset 4.
+HAT_OPEN_ACTIVE:
+    ldx #$13
+    jsr HAT_PREFIX0
+    sty $df1d
+    jsr HNAME
+    beq HAT_OPEN_2
+    !fill $f279 - *, $ea
+} else {
     !fill $d, $ea   ; $f26c-$f278 BLANK monitor byte-store helper (embedded in CKOUT)
+}
 }
     tax                                      ; $f279
     jsr $ed0c                                ; $f27a
@@ -2674,7 +2763,35 @@ CLK_SCL:
     bpl CLK_SCL
     !fill $f3ac - *, $18
 } else {
+!if HYPER_BUILD {
+; Optional @ directory device parser. Existing @$ and @$9 stay intact; Hyper
+; additionally accepts @$10 and @$11.
+HAT_PARSE:
+    cmp #$39                ; "9"
+    bne HAT_PARSE_TENS
+    inc $ba
+    bne HAT_PARSE_TAIL
+HAT_PARSE_TENS:
+    cmp #$31                ; leading "1"
+    bne HAT_PARSE_DONE
+    jsr $0073
+    cmp #$30                ; "10"
+    beq HAT_PARSE_NUMBER
+    cmp #$31                ; "11"
+    bne HAT_PARSE_DONE
+HAT_PARSE_NUMBER:
+    and #$01
+    clc
+    adc #$0a
+    sta $ba
+HAT_PARSE_TAIL:
+    jsr $0073               ; command must end after the device number
+HAT_PARSE_DONE:
+    rts
+    !fill $f3ac - *, $00
+} else {
     !fill $25, $00   ; $f387-$f3ab BLANK F-key macro strings part1
+}
 }
     clc                                      ; $6a30 (relocated branch target for clc+rts)
     rts                                      ; $f3ad
@@ -2691,8 +2808,29 @@ CLK_OFS: !byte CLK_DSH+1,CLK_DSH,CLK_DSH+2,CLK_DSH+1,CLK_DSH
 CLK_SPRCOL: !byte 11,12,10,6,15,13,14,8,7,15,2,15,0,5,6,11
     !fill $f3d5 - *, $ea
 } else {
+!if HYPER_BUILD {
+; Remaining fixed SAVE parameters live in this 39-byte removed-F-key hole.
+HSAVE_CONT:
+    lda $b9
+    sta $df1d
+    lda $c1
+    sta $df1d
+    lda $c2
+    sta $df1d
+    lda $ae
+    sta $df1d
+    lda $af
+    sta $df1d
+    jsr HNAME
+    lda #$01                ; PUSH_CMD; firmware owns the CPU stop/resume
+    sta $df1c
+    jsr HREPLY
+    jmp HSAVE_DONE
+    !fill $f3d5 - *, $ea
+} else {
     !fill $6, $00   ; $f3ae-$f3b3 BLANK F-key macro strings part2
     !fill $21, $ea   ; $f3b4-$f3d4 BLANK F7/UCI-menu hook
+}
 }
     lda $b9                                  ; $f3d5
     bmi $f3ac                                ; $f3d7
@@ -2738,6 +2876,28 @@ CLK_CLRSPR:
     jmp CLK_SPRREG
     !fill $f42b - *, $ea
 } else {
+!if HYPER_BUILD {
+; X already holds the covered character's colour and Y the cursor column.
+; ROR turns state 1 into $80 using the carry produced by SHIFT bit 0.
+HCURSOR:
+    lda $cf
+    bne HCUR_VISIBLE
+    jmp HCUR_ON
+HCUR_VISIBLE:
+    bmi HCUR_OFF
+    lda $028d
+    lsr
+    bcc HCUR_OFF
+    ror $cf
+    ldx $0286
+    lda #$9e                ; inverse up-arrow screen code
+    jmp $ea1c
+HCUR_OFF:
+    lda #$00
+    sta $cf
+    lda $ce
+    jmp $ea1c
+} else {
 BANNER_PRINT:
     lda #$73                                 ; normal startup banner
     ldy #$e4
@@ -2756,6 +2916,7 @@ BANNER_DONE:
 BANNER_ULT:
     !scr "ultimate"
     !fill $f42b - *, $ea
+}
 }
 !if JD_ENABLE {
 ; =============================================================================
@@ -2817,8 +2978,25 @@ CLK_GATE:
     jmp CLK_BOTTOM
 CLK_GOFF:
     jmp $ea81
-}
     !fill $f495 - *, $ea   ; pad JS_TX block to the $f495 boundary
+} else {
+!if HYPER_BUILD {
+; Second half of the fast-directory gate. Only the actual SoftwareIEC bus ID
+; uses UCI; every other device falls back to the normal channel code.
+HAT_OPEN_ID:
+    lda $df1d
+    cmp #$c9
+    beq HAT_OPEN_ID_OK
+    sec
+    rts
+HAT_OPEN_ID_OK:
+    ldy #$00
+    jmp HAT_OPEN_ACTIVE
+    !fill $f495 - *, $ea
+} else {
+    !fill $f495 - *, $ea
+}
+}
 } else {
     !fill $6a, $ea   ; $f42b-$f494 BLANK ML-monitor command handlers
 }
@@ -2930,7 +3108,32 @@ CLK_MREADY:
     jmp $a483
     !fill $f555 - *, $ea
 } else {
+!if HYPER_BUILD {
+; Queue-byte handlers are split from HREPLY to fit the fragmented ROM holes.
+HREPLY_DATA:
+    lda $df1e
+    jmp HREPLY_LOOP
+HREPLY_STATUS:
+    lda $df1f
+    sta HSTAT,y
+    iny
+    jmp HREPLY_LOOP
+; First half of the fast-directory gate. HDIR is cleared even on fallback so
+; the shared byte reader can safely delegate to the stock KERNAL.
+HAT_OPEN_GATE:
+    lda #$00
+    sta HDIR
+    lda $ba
+    cmp $df1b
+    bne HAT_OPEN_FALLBACK
+    jmp HAT_OPEN_ID
+HAT_OPEN_FALLBACK:
+    sec
+    rts
+    !fill $f555 - *, $ea
+} else {
     !fill $22, $ea   ; $f533-$f554 BLANK F-key dispatch (E5E7 now bypasses)
+}
 }
     !byte $36   ; $f555 kept tail
     sta $f8                                  ; $f556
@@ -3075,7 +3278,23 @@ CLK_BOT2:
     jmp $ea81
     !fill $f676 - *, $ea
 } else {
+!if HYPER_BUILD {
+; Close the UCI directory channel. HPREFIX aborts any partly consumed CHKIN
+; response before command $14 closes SoftwareIEC channel zero.
+HAT_CLOSE:
+    lda HDIR
+    beq HAT_CLOSE_DONE
+    ldy #$00
+    ldx #$14
+    jsr HAT_PREFIX0
+    jsr HAT_EXEC_EMPTY
+    sty HDIR
+HAT_CLOSE_DONE:
+    rts
     !fill $f676 - *, $ea
+} else {
+    !fill $f676 - *, $ea
+}
 }
     lda #$00                                 ; $f676
     sta $90                                  ; $f678
@@ -3175,7 +3394,18 @@ CLK_PREIO:
     jmp CLK_PREHI
     !fill $f736 - *, $ea
 } else {
+!if HYPER_BUILD {
+; Empty response queue: accept a MORE block and wait for the next one, or
+; report EOF/read error when no further block exists.
+HAT_DATA_EOI:
+    lda #$40
+    ora $90
+    sta $90
+    jmp HAT_DATA_OK
+    !fill $f736 - *, $ea
+} else {
     !fill $a, $ea   ; $f72c-$f735 BLANK monitor helper (dead island, callers blanked)
+}
 }
     jsr $ee97                                ; $f736
     bit $dd01                                ; $f739
@@ -3227,11 +3457,16 @@ AT_DIR_ENTRY:
     sta $ba                                  ; default: @$ lists drive 8
     jsr $0073                                ; optional drive digit after "$"
     beq AT_DIR_LIST
+!if HYPER_BUILD {
+    jsr HAT_PARSE
+    bne AT_DIR_SYNTAX
+} else {
     cmp #$39                                 ; "9"
     bne AT_DIR_SYNTAX
     inc $ba
     jsr $0073
     bne AT_DIR_SYNTAX
+}
 AT_DIR_LIST:
     lda #$01
     ldx $ba
@@ -3241,32 +3476,66 @@ AT_DIR_LIST:
     ldx #<AT_DIR_NAME
     ldy #>AT_DIR_NAME
     jsr $ffbd                                ; SETNAM "$"
+!if HYPER_BUILD {
+    jsr HAT_OPEN_GATE
+    bcc AT_DIR_READ
+}
     jsr $ffc0                                ; OPEN
     bcs AT_DIR_KERR
     ldx #$01
     jsr $ffc6                                ; CHKIN
     bcs AT_DIR_KERR
+AT_DIR_READ:
+!if HYPER_BUILD {
+    jsr HAT_GET                              ; skip directory load address
+    jsr HAT_GET
+} else {
     jsr $ffcf                                ; skip directory load address
     jsr $ffcf
+}
 AT_DIR_LINE:
+!if HYPER_BUILD {
+    jsr HAT_GET                              ; next-line pointer low
+} else {
     jsr $ffcf                                ; next-line pointer low
+}
     sta $fb
+!if HYPER_BUILD {
+    jsr HAT_GET                              ; next-line pointer high
+} else {
     jsr $ffcf                                ; next-line pointer high
+}
     ldx $90
     bne AT_DIR_DONE
     ora $fb
     beq AT_DIR_DONE
+!if HYPER_BUILD {
+    jsr HAT_GET                              ; block count low
+} else {
     jsr $ffcf                                ; block count low
+}
     tax
+!if HYPER_BUILD {
+    jsr HAT_GET                              ; block count high
+} else {
     jsr $ffcf                                ; block count high
+}
     jsr $bdcd                                ; print A/X as unsigned integer
     lda #$20
     jsr $ffd2
 AT_DIR_CHARS:
+!if HYPER_BUILD {
+    jsr HAT_GET
+} else {
     jsr $ffcf
+}
     ldx $90
     bne AT_DIR_DONE
+!if HYPER_BUILD {
+    tax                                      ; set Z from the character in A
+} else {
     cmp #$00
+}
     beq AT_DIR_EOL
     jsr $ffd2
     jmp AT_DIR_CHARS
@@ -3275,6 +3544,9 @@ AT_DIR_EOL:
     jsr $ffd2
     jmp AT_DIR_LINE
 AT_DIR_DONE:
+!if HYPER_BUILD {
+    jsr HAT_CLOSE
+}
     jsr $ffcc                                ; CLRCHN
     lda #$01
     jsr $ffc3                                ; CLOSE
@@ -3377,7 +3649,32 @@ CLK_RASTER:
     rts
     !fill $f8cb - *, $00
 } else {
+!if HYPER_BUILD {
+HSAVE_DONE:
+    lda HSTAT
+    beq HSAVE_OK
+    jmp $f707               ; KERNAL error 5: DEVICE NOT PRESENT
+HSAVE_OK:
+    clc
+    rts
+HSAVE_STOCK:
+    jmp $f5ed               ; original SAVE handler
+; Finish a UCI directory byte read. Bit 7 says another byte is buffered;
+; state bit 4 distinguishes a following chunk from the final chunk.
+HAT_DATA_NEXT:
+    lda $df1c
+    bmi HAT_DATA_OK
+    and #$10
+    bne HAT_DATA_OK
+    jmp HAT_DATA_EOI
+HAT_DATA_OK:
+    pla
+    clc
+    rts
+    !fill $f8cb - *, $00
+} else {
     !fill $1c, $00   ; $f8af-$f8ca BLANK monitor handler-address table
+}
 }
     ora ($0a,x)                              ; $f8cb
     !byte $64                                ; $6f51 (undefined opcode)
@@ -3620,6 +3917,35 @@ CLK_BDLY:
     sta $d021
     jmp CLK_BOT2
 }
+!if HYPER_BUILD {
+; LOAD_EX performs the DMA transfer. The Ultimate pauses the 6510 only while
+; this command is active, then returns status + end address through $DF1F.
+HLOAD_EX:
+    ldx #$11                ; SOFTIEC_CMD_LOAD_EX
+    jsr HPREFIX
+    lda $b9
+    sta $df1d
+    lda $93
+    sta $df1d
+    lda #$01                ; PUSH_CMD; firmware owns the CPU stop/resume
+    sta $df1c
+    jsr HREPLY
+    lda HSTAT
+    beq HLOAD_OK
+    bpl HLOAD_ERROR
+    lda $90                 ; $80 = verify mismatch
+    ora #$10
+    sta $90
+HLOAD_OK:
+    ldx HSTAT+1
+    ldy HSTAT+2
+    stx $ae
+    sty $af
+    clc
+    rts
+HLOAD_ERROR:
+    jmp $f707               ; KERNAL error 5: DEVICE NOT PRESENT
+}
     !fill $fa6b - *, $ea   ; pad JD detect block to the $fa6b boundary
 } else {
     !fill $89, $ea   ; $f9e2-$fa6a pristine blank (137 bytes)
@@ -3710,8 +4036,28 @@ CLK_DRAW2:
     rts
     !fill $fb11 - *, $ea
 } else {
+!if HYPER_BUILD {
+; A consumed UCI chunk is either followed by another chunk (state $30) or by
+; EOF. DATA_ACC asks SoftwareIEC to prepare the next response block.
+HAT_GET_EMPTY:
+    and #$30
+    cmp #$30
+    beq HAT_GET_MORE
+    lda #$42                ; EOF + read error, matching KERNAL channel status
+    ora $90
+    sta $90
+    lda #$0d
+    clc
+    rts
+HAT_GET_MORE:
+    jsr HACK
+    jsr HWAIT
+    jmp HAT_GET_UCI
+    !fill $fb11 - *, $00
+} else {
     !fill $fb02 - *, $ea   ; pad JS_GATE/tables block to the $fb02 boundary
     !fill $f, $00   ; $fb02-$fb10 BLANK F-key hardcopy fake-return data table
+}
 }
 } else {
     !fill $42, $ea   ; $fac0-$fb01 BLANK directory decimal block-count printer
@@ -3732,9 +4078,25 @@ CLK_DRAWLED:
     jmp CLK_CELL
     !fill $fb2e - *, $ea
 } else {
+!if HYPER_BUILD {
+; Execute a command that returns no payload, then accept its terminal state.
+HAT_EXEC_EMPTY:
+    lda #$01
+    sta $df1c
+    jsr HWAIT
+HACK:
+    lda #$02
+    sta $df1c
+HACK_WAIT:
+    bit $df1c
+    bne HACK_WAIT
+    rts
+    !fill $fb2e - *, $ea
+} else {
     !byte $ea,$ea,$ea,$ea,$ea,$ea,$ea
     !byte $ea,$ea,$ea,$ea,$ea,$ea,$ea,$ea
     !byte $ea,$ea,$ea,$ea,$ea
+}
 }
 !if JD_ENABLE {
 ; VIC-bank-preserving setup helpers (placed in the freed $fb2e hardcopy hole).
@@ -3792,6 +4154,29 @@ CLK_DIGIT:
 CLK_HAVE:
     jmp CLK_DRAW2
 }
+!if HYPER_BUILD {
+; Ultimate SoftwareIEC DMA SAVE gate. The command dumps the complete KERNAL
+; SAVE range in one DMA transaction and leaves other device numbers untouched.
+HSAVE:
+    lda $df1d
+    cmp #$c9
+    beq HSAVE_UCI
+    jmp HSAVE_STOCK
+HSAVE_UCI:
+    lda $ba
+    cmp $df1b
+    beq HSAVE_ACTIVE
+    jmp HSAVE_STOCK
+HSAVE_ACTIVE:
+    lda #$00
+    sta $90
+    jsr $f68f               ; standard SAVING + filename message
+    ldx #$12                ; SOFTIEC_CMD_SAVE
+    jsr HPREFIX
+    lda #$00                ; SAVE verify flag (KERNAL SAVE has no verify mode)
+    sta $df1d
+    jmp HSAVE_CONT
+}
     !fill $fb8e - *, $ea   ; pad to the kept hardcopy tail
 } else {
     !fill $60, $ea   ; $fb2e-$fb8d BLANK screen-to-printer hardcopy
@@ -3814,7 +4199,16 @@ CLK_NAMEIO:
     jmp $f3d5
     !fill $fbaa - *, $ea
 } else {
+!if HYPER_BUILD {
+; HPREFIX plus the common zero secondary-address byte used by directory
+; OPEN/CHKIN/CLOSE. Callers keep Y at zero throughout command setup.
+HAT_PREFIX0:
+    jsr HPREFIX
+    sty $df1d
+    rts
+} else {
     !fill $7, $ea   ; $fb97-$fb9d BLANK directory line-number printer
+}
     lda #$20                                 ; $fb9e
     bit $0da9                                ; $fba0
     jmp $ffd2                                ; $fba3
@@ -3931,6 +4325,34 @@ CLK_REARM:
     sta $0315
     jmp CLK_RASTER
 }
+!if HYPER_BUILD {
+; Drain one short UCI reply. LOAD_SU response data is discarded; LOAD_EX/SAVE
+; return their result bytes through the independent status queue in HSTAT.
+HREPLY:
+    ldy #$00
+HREPLY_WAIT:
+    lda $df1c
+    and #$c0
+    beq HREPLY_WAIT
+HREPLY_LOOP:
+    lda $df1c
+    bpl HREPLY_NODATA
+    jmp HREPLY_DATA
+HREPLY_NODATA:
+    asl                     ; status-available bit 6 -> N
+    bpl HREPLY_DONE
+    jmp HREPLY_STATUS
+HREPLY_DONE:
+    jmp HACK                ; release queues and wait for DATA_ACC to clear
+; Wait for the actual command-busy flag to clear. Watching only state $10 races
+; current firmware: PUSH_CMD can still have bit 0 set while state remains idle,
+; letting OPEN be acknowledged before SoftwareIEC has processed it.
+HWAIT:
+    lda $df1c
+    lsr
+    bcs HWAIT
+    rts
+}
     !fill $fc3f - *, $ea   ; pad JD receive block to the $fc3f boundary
 } else {
     !fill $99, $ea   ; $fba6-$fc3e BLANK LOAD"$"/directory read+list engine
@@ -4012,7 +4434,29 @@ CLK_ECIA:
     rts
     !fill $fcca - *, $ea
 } else {
+!if HYPER_BUILD {
+; Start each SoftwareIEC command from a clean UCI state. This mirrors the
+; firmware KERNAL's required command lifecycle and recovers a stale reply or
+; an interrupted command before appending a new frame.
+HPREFIX:
+    lda $df1c
+    and #$30
+    beq HPREFIX_READY
+    lda #$04                ; ABORT
+    sta $df1c
+HPREFIX_ABORT:
+    lda $df1c
+    and #$04
+    bne HPREFIX_ABORT
+HPREFIX_READY:
+    lda #$05                ; UCI SoftwareIEC target
+    sta $df1d
+    stx $df1d               ; command selected by caller
+    rts
+    !fill $fcca - *, $ea
+} else {
     !fill $20, $ea   ; $fcaa-$fcc9 BLANK W monitor handler
+}
 }
     lda $01                                  ; $fcca
     ora #$20                                 ; $fccc
@@ -4082,8 +4526,14 @@ CLK_ECIA:
     sbc ($2f),y                              ; $fd47
     !byte $f3                                ; $73cd (undefined opcode)
     ror $fe                                  ; $fd4a
-    lda $f4                                  ; $fd4c
-    sbc $a9f5                                ; $fd4e
+!if HYPER_BUILD {
+    !word HLOAD                              ; $fd4c ILOAD -> SoftwareIEC DMA gate
+    !word HSAVE                              ; $fd4e ISAVE -> SoftwareIEC DMA gate
+    !byte $a9                                ; $fd50 lda #$00 opcode
+} else {
+    lda $f4                                  ; $fd4c ILOAD -> $f4a5
+    sbc $a9f5                                ; $fd4e ISAVE -> $f5ed (+ $fd50 lda opcode)
+}
     brk                                      ; $fd51
     tay                                      ; $fd52
     sta $0002,y                              ; $fd53
@@ -4326,9 +4776,72 @@ CLK_UEXIT:
     jmp CLK_URD
     !fill $ff3b - *, $ea
 } else {
+!if HYPER_BUILD {
+; =============================================================================
+; Ultimate SoftwareIEC DMA LOAD gate. The RAM ILOAD vector points here only in
+; HYPER builds. Other devices fall through byte-for-byte to the existing
+; Dolphin/Jiffy/stock loader at $f4a7.
+; =============================================================================
+HLOAD:
+    sta $93                 ; KERNAL LOAD mode: 0=load, nonzero=verify
+    lda $df1d
+    cmp #$c9                ; UCI register interface present?
+    bne HLOAD_STOCK
+    lda $ba
+    cmp $df1b               ; selected device is the SoftwareIEC bus ID?
+    bne HLOAD_STOCK
+    lda #$00
+    sta $90                 ; clear KERNAL status
+    jsr $f5af               ; standard SEARCHING/VERIFYING + filename message
+
+    ldx #$10                ; SOFTIEC_CMD_LOAD_SU
+    jsr HPREFIX
+    lda $b9                 ; secondary address / relocation mode
+    sta $df1d
+    lda $93                 ; verify flag
+    sta $df1d
+    lda $c3                 ; requested load address
+    sta HSTAT+1             ; LOAD_EX returns no end address in verify mode
+    sta $df1d
+    lda $c4
+    sta HSTAT+2
+    sta $df1d
+    lda #$00                ; firmware reserves command bytes 6-7 before name
+    sta $df1d
+    sta $df1d
+    jsr HNAME
+    lda #$01                ; PUSH_CMD, CPU continues during setup
+    sta $df1c
+    jsr HREPLY
+    lda HSTAT
+    bne HLOAD_SU_ERROR
+    jmp HLOAD_EX
+HLOAD_SU_ERROR:
+    cmp #$04                ; unsupported target: retain IEC fallback
+    beq HLOAD_STOCK
+    cmp #$05                ; SoftwareIEC module not active: use normal IEC
+    beq HLOAD_STOCK
+    jmp $f704               ; KERNAL error 4: FILE NOT FOUND
+HLOAD_STOCK:
+    jmp $f4a7               ; original handler after `sta $93`
+HNAME:
+    ldy #$00
+    ldx $b7
+    beq HNAME_DONE
+HNAME_LOOP:
+    lda ($bb),y
+    sta $df1d
+    iny
+    dex
+    bne HNAME_LOOP
+HNAME_DONE:
+    rts
+    !fill $ff3b - *, $ea
+} else {
     !byte $ea   ; $fecb
     !fill $13, $ea   ; $fecc-$fede BLANK CTRL+D residual dir-load dispatch tail (removed)
     !fill $5c, $ea   ; $fedf-$ff3a BLANK F-key on/off (CTRL+&/X) + CTRL+V VIC-init dispatch (removed)
+}
 }
 ; =============================================================================
 ; WAIT_PARALLEL_HANDSHAKE - Wait for drive to signal via FLAG or bit 4

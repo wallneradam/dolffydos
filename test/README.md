@@ -8,11 +8,11 @@ or KERNAL code is read or embedded (clean-room safe).
 
 The three per-device transfer paths that must all stay byte-exact:
 
-| mode               | path                  | VICE drive setup                                          |
-| ------------------ | --------------------- | --------------------------------------------------------- |
-| `jiffy-serial`     | JiffyDOS fast serial  | `-dos1541 <jiffy>` (no cable)                             |
-| `dolphin-parallel` | DolphinDOS parallel   | `-dos1541 <dolphin> -parallel8 1 -userportdevice 21` + drive RAM `$2000/$4000/$6000` |
-| `stock-serial`     | stock Commodore serial| VICE's bundled 1541 DOS (no external ROM)                 |
+| mode               | path                   | VICE drive setup                                 |
+| ------------------ | ---------------------- | ------------------------------------------------ |
+| `jiffy-serial`     | JiffyDOS fast serial   | external JiffyDOS ROM, no cable                  |
+| `dolphin-parallel` | DolphinDOS parallel    | external Dolphin ROM, parallel cable, drive RAM  |
+| `stock-serial`     | stock Commodore serial | bundled 1541 DOS, no external ROM                |
 
 ## Requirements
 
@@ -45,6 +45,54 @@ python3 test/regress.py --save          # only the SAVE checks
 Exit code is non-zero if any executed check fails. Runtime artifacts (d64 images,
 extracted files) go to a system temp dir; nothing is written into the repo.
 
+### Hyper build checks
+
+The static layout check builds on the five ROM images and verifies that the
+three legacy images remain byte-identical, all images are exactly 8192 bytes,
+the Hyper LOAD/SAVE vectors are installed, and Hyper-only bytes stay inside the
+reserved ROM holes:
+
+```sh
+python3 test/hyper_layout.py
+```
+
+VICE does not emulate the Ultimate Command Interface, so the existing matrix
+only exercises the Hyper ROMs' Dolphin/Jiffy/stock fallback paths. Select a
+Hyper ROM through `DOLFFY_ROM`, for example:
+
+```sh
+DOLFFY_ROM=kernal/rom/dolffy-hyper.rom \
+  python3 test/regress.py jiffy-serial stock-serial
+```
+
+The `@` smoke test confirms that both Hyper ROMs retain `@$` / `@$9`, accept the
+new `@$10` / `@$11` syntax, and fall back cleanly to IEC when UCI is absent:
+
+```sh
+python3 test/hyper_at_dir.py
+```
+
+The cursor runtime probe checks the five relevant phases in both Hyper ROMs:
+inverse character, inverse SHIFT arrow, safe restoration, and the normal
+two-phase cursor with SHIFT off.
+
+```sh
+python3 test/hyper_cursor.py
+```
+
+For real hardware, build and run the small UCI discovery probe:
+
+```sh
+acme -f cbm -o /tmp/hyper_uci_probe.prg test/hyper_uci_probe.asm
+curl -X POST --data-binary @/tmp/hyper_uci_probe.prg \
+  http://ULTIMATE_HOST/v1/runners:run_prg
+curl 'http://ULTIMATE_HOST/v1/machine:readmem?address=0xC0F0&length=272' | xxd -g1
+```
+
+The result byte at `$C0FF` is `$A5` on success or `$EE` on timeout. `$C0F0`
+contains the UCI identification byte (expected `$C9`), `$C0F1` the SoftwareIEC
+bus ID, `$C100` the IDENTIFY response, and `$C180` its status (expected `$00`).
+
 ## What each check proves
 
 - **LOAD** — `LOAD"*",8,1` of a PRG saved at `$4001` must land byte-exact at
@@ -58,8 +106,13 @@ extracted files) go to a system temp dir; nothing is written into the repo.
 
 ## Files
 
-| file              | purpose                                                       |
-| ----------------- | ------------------------------------------------------------- |
-| `harness.py`      | VICE binary-monitor glue: launch, mem peek/poke, key inject, free-run, disk build/extract |
-| `regress.py`      | the regression matrix runner (main entry)                     |
-| `.env.example`    | template for the proprietary drive-ROM paths                  |
+| file                     | purpose                                                 |
+| ------------------------ | ------------------------------------------------------- |
+| `harness.py`             | VICE monitor, RAM, keyboard, and disk-image helpers     |
+| `regress.py`             | regression matrix runner                                |
+| `hyper_at_dir.py`        | Hyper `@` parser and non-UCI IEC fallback smoke test    |
+| `hyper_cursor.py`        | Hyper three-phase SHIFT cursor runtime test             |
+| `hyper_cursor_probe.asm` | machine-code probe used by `hyper_cursor.py`            |
+| `hyper_layout.py`        | ROM size, legacy hash, vector, and reserved-hole checks |
+| `hyper_uci_probe.asm`    | real-Ultimate UCI target and SoftwareIEC bus-ID probe   |
+| `.env.example`           | template for the proprietary drive-ROM paths            |

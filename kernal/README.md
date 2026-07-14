@@ -7,7 +7,10 @@ combine:
 - the **JiffyDOS** serial fast protocol on the other drive(s) (drive 9; and as a
   fallback for drive 8 when no parallel cable is present) — per-device autodetect
   (parallel > JiffyDOS-serial > stock serial),
-- **Ultimate** add-ons (RTC border clock, shift-lock indicator, more later).
+- optional **Ultimate** add-ons: SoftwareIEC DMA LOAD/SAVE and a three-phase
+  cursor SHIFT/SHIFT LOCK indicator in the Hyper builds, including direct
+  `@$10` / `@$11` directory streaming, or the RTC border clock and sprite-based
+  shift-lock indicator in the separate Ultimate build.
 
 This directory holds the editable ACME assembler source. It is built on a
 reverse-engineered **DolphinDOS 2** disassembly, mechanically relabeled to the true
@@ -17,17 +20,21 @@ protocol documentation (see *Provenance and licensing*).
 ## Build
 
 ```
-make            # assembles both raw, headerless 8192-byte images
+make            # assembles all five raw, headerless 8192-byte images
 make plain      # assembles rom/dolffy.rom (stable base)
 make ultimate   # assembles rom/dolffy-ultimate.rom
+make quickrun   # assembles rom/dolffy-quickrun.rom
+make hyper      # assembles rom/dolffy-hyper.rom
+make hyper-quickrun  # assembles rom/dolffy-hyper-quickrun.rom
 make verify     # checks the build still equals the upstream faithful base
                 # (MD5 b3b0fa84…)
 ```
 
 Requires the [ACME](https://sourceforge.net/projects/acme-crossass/) cross-assembler
 (`brew install acme` on macOS; tested with 0.97). The stable `plain` build is
-`rom/dolffy.rom`; the Ultimate-specific build is `rom/dolffy-ultimate.rom`. Either
-raw ROM is usable directly as a C64 KERNAL ROM (e.g. the Ultimate / C64U "Kernal
+`rom/dolffy.rom`; the Ultimate-specific builds add either SoftwareIEC DMA
+(`dolffy-hyper*.rom`) or the border clock (`dolffy-ultimate.rom`). Each raw ROM
+is usable directly as a C64 KERNAL ROM (e.g. the Ultimate / C64U "Kernal
 ROM" config slot, or VICE `-kernal`).
 
 `make verify` proves the `$E000` relabel is faithful; it passes only on the pristine
@@ -51,7 +58,7 @@ shifted by `+$897C`; absolute operands and data are untouched. Transform:
 
 ```
 kernal.asm          the $E000 DolphinDOS 2 source — being turned into Dolffy DOS
-rom/                build output (dolffy.rom, dolffy-ultimate.rom)
+rom/                build output (plain, quickrun, hyper, hyper-quickrun, Ultimate)
 tools/relabel.py    the $5684 -> $E000 byte-exact relabel transform
 reference/          pristine upstream base, preserved verbatim:
                       dolphindos2-faithful-b3b0.rom, kernal.orig.asm, transform.py

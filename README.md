@@ -1,8 +1,8 @@
 # Dolffy DOS
 
 **A fast, modern KERNAL ROM for the Commodore 64 — DolphinDOS parallel speed and
-a clean-room JiffyDOS serial fast loader in one ROM, with optional Ultimate-only
-extras (a real-time clock and a SHIFT LOCK indicator).**
+a clean-room JiffyDOS serial fast loader in one ROM, with optional Ultimate
+SoftwareIEC DMA speed or clock/SHIFT LOCK extras.**
 
 <p align="center">
   <img src="docs/images/boot-screen.png" width="420"
@@ -65,6 +65,9 @@ faster.
   fastest path.
 - **JiffyDOS-compatible serial fast LOAD/SAVE** — a clean-room reimplementation of
   the C64 side of the protocol (no JiffyDOS source used).
+- **Ultimate SoftwareIEC DMA LOAD/SAVE** — optional Hyper builds bypass IEC for
+  the Ultimate's SoftwareIEC device while retaining the complete Dolphin and
+  JiffyDOS paths for every other device.
 - **Per-device autodetect** — picks the best protocol per drive automatically:
   parallel > JiffyDOS serial > stock. No per-program setup.
 - **Universal fallback** — any non-fast drive still works at stock serial speed.
@@ -72,7 +75,8 @@ faster.
 - **Correct directory loads** — `LOAD"$"` (with or without a device number)
   relocates properly on every path.
 - **Non-destructive directory wedge** — `@$` (drive 8) and `@$9` (drive 9) list a
-  directory without wiping the BASIC program in memory.
+  directory without wiping the BASIC program in memory. Hyper also accepts
+  `@$10` and `@$11`, using UCI speed when that number is the SoftwareIEC Bus ID.
 - **DolphinDOS editor comfort keys** — CTRL+A/B/G/K/L plus RESTORE combinations
   (see *Keyboard shortcuts*).
 - **Auto Ultimate detection** — shows a `COMMODORE 64 ULTIMATE` banner when a
@@ -81,7 +85,8 @@ faster.
   starts the loaded program.
 - **Ultimate build extras** — a real-time clock and a SHIFT LOCK indicator (see
   *The Ultimate extras*).
-- **Three ready-to-use builds** — Plain, Quickrun, and Ultimate ROMs.
+- **Five ready-to-use builds** — Plain, Quickrun, Hyper, Hyper+Quickrun, and
+  Ultimate ROMs.
 - **Stock-compatible** — a drop-in 8 KB KERNAL; normal software keeps working.
 
 ## Why it is fast — a real-world example
@@ -111,16 +116,19 @@ serial; here it stays fast. (The parallel path is unchanged from DolphinDOS —
 exactly as fast — and the serial path is a few seconds behind original JiffyDOS,
 not quite as optimized.)
 
-## Three builds
+## Five builds
 
-Every release ships **three** ROM images. They share the same fast-disk core; the
-differences are the quickrun shortcut and the Ultimate-specific extras.
+Every release ships **five** ROM images. They share the same Dolphin/Jiffy
+fast-disk core; the differences are the quickrun shortcut and the two independent
+Ultimate-specific directions.
 
-| Build          | File                       | What you get |
-| -------------- | -------------------------- | ------------ |
-| **Plain**      | `dolffy.rom`               | The conservative, stable base. Full Dolphin + JiffyDOS fast disk, the non-destructive directory wedge, and nothing that draws on the screen. Runs anywhere a C64 KERNAL runs. |
-| **Quickrun**   | `dolffy-quickrun.rom`      | Everything in *Plain*, **plus** C=+RUN/STOP: `LOa`, then `SYS` starts the loaded program. |
-| **Ultimate**   | `dolffy-ultimate.rom`      | Everything in *Plain*, **plus** a real-time clock and a SHIFT LOCK indicator. Built for the Ultimate family. |
+| Build              | File                           | What you get |
+| ------------------ | ------------------------------ | ------------ |
+| **Plain**          | `dolffy.rom`                   | The conservative, stable base. Full Dolphin + JiffyDOS fast disk, the non-destructive directory wedge, and nothing that draws on the screen. Runs anywhere a C64 KERNAL runs. |
+| **Quickrun**       | `dolffy-quickrun.rom`          | Everything in *Plain*, **plus** C=+RUN/STOP: `LOa`, then `SYS` starts the loaded program. |
+| **Hyper**          | `dolffy-hyper.rom`             | Everything in *Plain*, **plus** Ultimate SoftwareIEC DMA LOAD/SAVE and a three-phase cursor SHIFT/SHIFT LOCK indicator. Dolphin parallel, JiffyDOS serial, and stock serial remain available per device. |
+| **Hyper Quickrun** | `dolffy-hyper-quickrun.rom`    | Everything in *Hyper*, **plus** the Quickrun shortcut. |
+| **Ultimate**       | `dolffy-ultimate.rom`          | Everything in *Plain*, **plus** a real-time clock and a SHIFT LOCK indicator. Built for the Ultimate family. |
 
 > Compatibility note: the **Ultimate** build is the experimental one. It installs
 > a raster clock / SHIFT LOCK indicator and uses the Ultimate Command Interface
@@ -128,15 +136,49 @@ differences are the quickrun shortcut and the Ultimate-specific extras.
 > If you want the safest KERNAL, or you use cartridges that depend on NMI or
 > IO1/IO2 (`$DE00` / `$DF00`), start with **Plain**.
 
-The **Plain** build auto-detects an Ultimate at boot: it shows the familiar
-`COMMODORE 64 BASIC V2` banner on a plain C64, and rewrites it to
-`COMMODORE 64 ULTIMATE` when a Command Interface is present. The **Ultimate** build
-always shows `COMMODORE 64 ULTIMATE`. Both print a `DOLFFY DOS 1.0` line.
+The **Plain** and **Quickrun** builds auto-detect an Ultimate at boot: they show the familiar
+`COMMODORE 64 BASIC V2` banner on a plain C64, and rewrite it to
+`COMMODORE 64 ULTIMATE` when a Command Interface is present. The Ultimate-only
+**Hyper**, **Hyper Quickrun**, and **Ultimate** builds always show
+`COMMODORE 64 ULTIMATE`. Every build prints a `DOLFFY DOS 1.0` line.
 
 If you are not on an Ultimate, or you just want the most conservative ROM, use the
 **Plain** build. If you want the classic one-key disk start workflow, use
-**Quickrun**. If you are on an Ultimate and want the clock and the SHIFT LOCK
-indicator, use the **Ultimate** build.
+**Quickrun**. On an Ultimate, use **Hyper** or **Hyper Quickrun** when SoftwareIEC
+DMA disk speed is the priority; use **Ultimate** when you want the clock and the
+SHIFT LOCK indicator.
+
+### Hyper builds
+
+The Hyper variants add a third fast-disk route without removing anything from
+Dolffy. For the device number reported by the Ultimate's SoftwareIEC Bus ID
+register, KERNAL `LOAD`, `VERIFY`, and `SAVE` use UCI target `$05` and transfer
+directly between the SoftwareIEC host folder and C64 RAM. All other device
+numbers continue through the existing Dolphin parallel, JiffyDOS serial, or
+stock serial dispatch.
+
+The Hyper cursor remains the normal two-phase original/inverse character when
+SHIFT is off. While SHIFT or SHIFT LOCK is active, it cycles through the
+original character, the inverse character, and an inverse up-arrow. The editor
+still restores the covered character before accepting input, so the indicator
+never becomes part of the BASIC line. It uses no sprite or raster border trick.
+
+Enable both **Command Interface** and **Software IEC**, assign SoftwareIEC a bus
+ID that does not collide with an emulated or physical drive, and select a host
+folder. If the Command Interface is absent or the selected device is not the
+SoftwareIEC Bus ID, the ROM retains the normal IEC path. Custom loaders that
+bypass KERNAL LOAD/SAVE do not use DMA.
+
+For a fast, non-destructive SoftwareIEC directory, type `@$10` or `@$11` to
+match its configured Bus ID. The Hyper ROM sends UCI OPEN/CHKIN/CLOSE commands
+and streams the directory directly to the screen. `@$` and `@$9` keep their
+existing meanings; every spelling falls back to normal IEC when it does not
+select the active SoftwareIEC device.
+
+The Hyper DMA path requires real Ultimate hardware; VICE does not emulate this
+UCI target. The non-UCI Dolphin/Jiffy/stock fallbacks are covered by the normal
+VICE regression matrix. A small target-identification probe is provided as
+`test/hyper_uci_probe.asm` for hardware bring-up.
 
 ### The Ultimate extras
 
@@ -258,6 +300,8 @@ DolphinDOS source — see *Licensing*.
 
 - **Non-destructive directory wedge.** Type `@$` to list drive 8's directory, or
   `@$9` for drive 9, **without** wiping the BASIC program currently in memory.
+  Hyper builds also accept `@$10` and `@$11`; the configured SoftwareIEC device
+  uses the direct UCI directory stream.
 
 ## Keyboard shortcuts
 
@@ -278,8 +322,9 @@ combinations:
 Coming from DolphinDOS? To make room for the fast-disk and Ultimate code, the
 F1–F8 macros, the other CTRL commands (CTRL+D, CTRL+@, CTRL+X, CTRL+&, CTRL+V,
 CTRL+\*, CTRL+DEL, C=+DEL) and SPACE+RESTORE were removed. The directory listing
-lives on as the `@$` / `@$9` command instead (see above). C=+RUN/STOP is restored
-only in the separate Quickrun build; Plain and Ultimate keep it disabled.
+lives on as the `@$` / `@$9` command instead (plus `@$10` / `@$11` in Hyper;
+see above). C=+RUN/STOP is restored only in the separate Quickrun build; Plain
+and Ultimate keep it disabled.
 
 ## Troubleshooting
 
@@ -332,16 +377,19 @@ described above.
 
 ```
 cd kernal
-make            # build both: rom/dolffy.rom (plain) and rom/dolffy-ultimate.rom
+make            # build all five ROM variants
 make plain      # build only the plain base, rom/dolffy.rom
 make ultimate   # build only the Ultimate build, rom/dolffy-ultimate.rom
+make hyper      # build rom/dolffy-hyper.rom
+make hyper-quickrun  # build rom/dolffy-hyper-quickrun.rom
 ```
 
 Requires the [ACME](https://sourceforge.net/projects/acme-crossass/) cross-assembler
 (`brew install acme` on macOS; tested with 0.97). Each output is a raw 8192-byte
-KERNAL image. The plain/Ultimate split is the single ACME define `ULTIMATE_BUILD`
-(`0` = plain, `1` = Ultimate). More detail — including the reclaimed ROM-space
-map that made the extras fit in 8 KB — is under [`kernal/README.md`](kernal/README.md)
+KERNAL image. The variants use the ACME defines `ULTIMATE_BUILD`,
+`QUICKRUN_BUILD`, and `HYPER_BUILD`. More detail — including the reclaimed
+ROM-space map that made the extras fit in 8 KB — is under
+[`kernal/README.md`](kernal/README.md)
 and [`docs/free-rom-space-map.md`](docs/free-rom-space-map.md). A regression harness for
 LOAD/SAVE across the parallel, JiffyDOS-serial and stock paths lives in
 [`test/`](test/).
