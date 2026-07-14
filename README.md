@@ -89,7 +89,23 @@ faster.
   Ultimate ROMs.
 - **Stock-compatible** — a drop-in 8 KB KERNAL; normal software keeps working.
 
-## Why it is fast — a real-world example
+## Why it is fast — up to three accelerators in one ROM
+
+Dolffy does not rely on one universal fast loader. Every ROM combines the
+DolphinDOS parallel and JiffyDOS-compatible serial paths; the Hyper variants add
+Ultimate DMA as a third. The ROM chooses the right path for each device:
+
+| Fast path                  | Used for                              | What it needs                          |
+| -------------------------- | ------------------------------------- | -------------------------------------- |
+| **DolphinDOS parallel**    | A parallel-cabled drive 8             | DolphinDOS drive ROM, cable, drive RAM |
+| **JiffyDOS serial**        | Any JiffyDOS-compatible serial drive  | Licensed JiffyDOS drive ROM            |
+| **Ultimate Hyper DMA**     | The Ultimate SoftwareIEC host folder  | Hyper ROM, SoftwareIEC, UCI enabled    |
+
+Everything else remains usable through stock Commodore serial. A single session
+can therefore use a DolphinDOS drive on 8, a JiffyDOS drive on 9, and a
+SoftwareIEC folder on 10 or 11 without changing KERNAL ROMs.
+
+### Measured drive example
 
 Loading [**SlotShot**](https://github.com/PyCoLang/slotshot), a real C64 game:
 
@@ -100,21 +116,21 @@ Loading [**SlotShot**](https://github.com/PyCoLang/slotshot), a real C64 game:
 | **Dolffy DOS + JiffyDOS drive** (serial fast path) | ~23 s        |
 | **Dolffy DOS + DolphinDOS parallel** (drive 8)     | **~5 s (!)** |
 
-Figures are the author's own measurements and are indicative. The parallel path is
-by far the fastest; on the serial path Dolffy lands a few seconds behind original
-JiffyDOS.
+These are the author's own measurements and are indicative. Dolffy's parallel
+path is the unchanged DolphinDOS path and remains the fastest measured drive
+route. Its clean-room JiffyDOS-compatible serial path is a few seconds behind the
+original JiffyDOS KERNAL in this test.
 
-The table lists one drive per setup, which misses the real point: with Dolffy
-**you no longer have to choose between DolphinDOS and JiffyDOS.** On their own each
-forces a trade-off — DolphinDOS is blistering over the parallel cable but only
-drives a single unit, while JiffyDOS happily handles several drives but cannot do
-parallel at all. Dolffy gives you both at once: a parallel-cabled drive gets the
-full DolphinDOS speed *while* your serial drives run at JiffyDOS speed — each
-device automatically using the fastest protocol it supports, with stock serial as
-the fallback. Without this, a second drive typically drops back to slow stock
-serial; here it stays fast. (The parallel path is unchanged from DolphinDOS —
-exactly as fast — and the serial path is a few seconds behind original JiffyDOS,
-not quite as optimized.)
+Hyper is not assigned a made-up number in the table: no comparable SlotShot
+timing has been recorded yet. It is also a different kind of route — the Ultimate
+copies the file directly between the SoftwareIEC host folder and C64 RAM instead
+of transferring it through an emulated drive and the IEC bus. For ordinary BASIC
+programs, PRG files, tools, and data storage, that direct folder workflow is often
+the most convenient option even before considering its speed.
+
+The important result is not one winning benchmark. It is that Dolffy keeps every
+route available at once, automatically uses the best one that a device supports,
+and still retains stock serial as the compatibility fallback.
 
 ## Which ROM should I use?
 
@@ -169,7 +185,7 @@ That gives one ROM three different fast routes at the same time:
 | ----------------------------------------- | -------------------------------------------------- |
 | DolphinDOS drive 8 with parallel cable    | DolphinDOS parallel LOAD/SAVE                      |
 | JiffyDOS-capable drive                    | JiffyDOS-compatible serial LOAD/SAVE               |
-| Ultimate SoftwareIEC host folder          | UCI direct-memory LOAD/VERIFY/SAVE                 |
+| Ultimate SoftwareIEC host folder          | UCI direct-memory LOAD/SAVE                        |
 | Anything else                             | Stock Commodore serial fallback                    |
 
 Nothing has to be sacrificed to gain the SoftwareIEC route. A mounted D64 can
@@ -183,13 +199,12 @@ The direct folder is especially useful for:
 - quickly moving files between a modern computer and the C64;
 - writable program and data storage that is easy to copy or back up on the host.
 
-Standard `LOAD`, `VERIFY`, and `SAVE` syntax does not change. With SoftwareIEC
-configured as device 11, for example:
+Standard `LOAD` and `SAVE` syntax does not change. With SoftwareIEC configured
+as device 11, for example:
 
 ```basic
 LOAD"PROGRAM",11
 LOAD"PROGRAM",11,1
-VERIFY"PROGRAM",11
 SAVE"PROGRAM",11
 ```
 
@@ -352,9 +367,9 @@ LOAD"PROGRAM",11
 ```
 
 If `@$11` shows the folder contents, SoftwareIEC is reachable. With Command
-Interface enabled, a subsequent KERNAL `LOAD`, `VERIFY`, or `SAVE` to device 11
-uses Hyper DMA; with it disabled, the same commands remain functional through
-normal IEC and are simply slower. The SoftwareIEC folder does not need a
+Interface enabled, a subsequent KERNAL `LOAD` or `SAVE` to device 11 uses Hyper
+DMA; with it disabled, the same commands remain functional through normal IEC
+and are simply slower. The SoftwareIEC folder does not need a
 DolphinDOS or JiffyDOS drive ROM; those ROMs remain relevant only to the separate
 emulated or physical drives.
 
