@@ -85,46 +85,53 @@ Plus a 4-byte splice at `$ED8E` (`jmp JD_LOOPCHK`) and the `JD_CAP` capture at
 
 The plain free map above remains the allocation source for future common code.
 `dolffy-hyper.rom` and `dolffy-hyper-quickrun.rom` additionally use the following
-parts for SoftwareIEC DMA LOAD/SAVE and direct `@$10` / `@$11` directory
-streaming. The `$F1DF-$F20D` Quickrun region is not used, so Hyper and Quickrun
-can be enabled together.
+parts for SoftwareIEC DMA LOAD/SAVE, automatic LOAD fallback, and direct
+`@$10` / `@$11` directory streaming. Hyper Quickrun places its own 16-byte
+shortcut first in `$F1DF-$F20D`; the LOAD return filter and retry selector
+occupy the remaining 31 bytes, so both features still fit together.
 
-| Range          | Bytes | Hyper use                                         |
-| -------------- | ----: | ------------------------------------------------- |
-| `$F075-$F08B`  |    23 | UCI directory byte source                         |
-| `$F187-$F192`  |    12 | CHKIN launch and first-block wait                 |
-| `$F227-$F234`  |    14 | OPEN completion and CHKIN setup                   |
-| `$F26C-$F278`  |    13 | OPEN command frame and directory name             |
-| `$F387-$F3A8`  |    34 | `@$9` / `@$10` / `@$11` device parser            |
-| `$F3AE-$F3D4`  |    39 | SAVE parameters and completion                    |
-| `$F487-$F494`  |    14 | UCI identity half of directory gate               |
-| `$F533-$F553`  |    33 | response handlers and Bus-ID half of gate         |
-| `$F662-$F674`  |    19 | UCI directory channel close                       |
-| `$F72C-$F734`  |     9 | final directory-block EOI                         |
-| `$F815`        |     1 | one-byte expansion of the shared `@` wedge        |
-| `$F8AF-$F8CA`  |    28 | SAVE completion and directory chunk state         |
-| `$FA37-$FA69`  |    51 | LOAD_EX command and result                        |
-| `$FAF7-$FB0F`  |    25 | directory chunk refill and empty-block handling   |
-| `$FB1A-$FB2C`  |    19 | empty-response command and DATA_ACC helper        |
-| `$FB61-$FB88`  |    40 | SAVE entry and fallback gate                      |
-| `$FB97-$FB9D`  |     7 | common zero-secondary-address command prefix      |
-| `$FC1B-$FC3B`  |    33 | UCI response drain, acknowledgement, and wait     |
-| `$FCAA-$FCC5`  |    28 | command-state cleanup and prefix helper           |
-| `$FECB-$FF39`  |   111 | LOAD command frames, completion, and filename     |
+| Range          | Bytes | Hyper use                                              |
+| -------------- | ----: | ------------------------------------------------------ |
+| `$E5F0-$E5F4`  |     5 | cursor draw tail (Hyper)                               |
+| `$E5F8-$E5FC`  |     5 | cursor draw tail (Hyper Quickrun)                      |
+| `$F075-$F08D`  |    25 | UCI directory byte source                              |
+| `$F187-$F195`  |    15 | CHKIN launch plus final LOAD-error bridge              |
+| `$F1AA-$F1AC`  |     3 | LOAD retry bridge                                      |
+| `$F1DF-$F1FD`  |    31 | stock LOAD return filter and selector (Hyper)          |
+| `$F1EF-$F20D`  |    31 | stock LOAD return filter and selector (Hyper Quickrun) |
+| `$F227-$F234`  |    14 | OPEN completion and CHKIN setup                        |
+| `$F26C-$F278`  |    13 | OPEN command frame and directory name                  |
+| `$F387-$F3AB`  |    37 | compact `@$9` / `@$10` / `@$11` parser and retry reset |
+| `$F3AE-$F3D4`  |    39 | SAVE parameters and completion                         |
+| `$F487-$F494`  |    14 | UCI identity half of directory gate                    |
+| `$F533-$F553`  |    33 | response handlers and Bus-ID half of gate              |
+| `$F662-$F674`  |    19 | UCI directory channel close                            |
+| `$F72C-$F734`  |     9 | final directory-block EOI                              |
+| `$F815`        |     1 | one-byte expansion of the shared `@` wedge             |
+| `$F8AF-$F8CA`  |    28 | SAVE completion and directory chunk state              |
+| `$FA37-$FA69`  |    51 | LOAD_EX command and result                             |
+| `$FAF7-$FB0F`  |    25 | directory chunk refill and empty-block handling        |
+| `$FB1A-$FB2C`  |    19 | empty-response command and DATA_ACC helper             |
+| `$FB61-$FB88`  |    40 | SAVE entry and fallback gate                           |
+| `$FB97-$FB9D`  |     7 | common zero-secondary-address command prefix           |
+| `$FC1B-$FC3B`  |    33 | UCI response drain, acknowledgement, and wait          |
+| `$FCAA-$FCC5`  |    28 | command-state cleanup and prefix helper                |
+| `$FECB-$FF39`  |   111 | LOAD command frames, completion, and filename          |
 
 The default RAM-vector initializer also changes four live bytes at
 `$FD4C-$FD4F`, pointing ILOAD/ISAVE to `$FECB`/`$FB61`. This is deliberate and
 is checked separately from the hole boundaries by `test/hyper_layout.py`.
 
-Hyper also replaces the live cursor-blink block at `$EA40-$EA60`. Its first
-phase uses 24 bytes in `$F1DF-$F1F6` (or `$F1F0-$F207` after Quickrun), while the
+Hyper also replaces the live cursor-blink block at `$EA40-$EA60`. Most of the
+first phase is inline there; its five-byte draw tail occupies `$E5F0-$E5F4` (or
+`$E5F8-$E5FC` after Quickrun) in the removed SHIFT+RUN/STOP auto-LOAD buffer. The
 34-byte state selector occupies `$F409-$F42A`, reclaimed by making the
 Ultimate-only Hyper banner static. The cursor uses `$CF=0/1/$80` for original,
 inverse, and inverse-up-arrow states; no additional RAM is reserved. The fixed
 banner consumes the four-byte plain startup slack at `$E42C-$E42F`.
 
-After the SoftwareIEC and cursor allocations, Hyper retains 93 bytes of the
-plain free map; Hyper Quickrun retains 60 bytes.
+After the SoftwareIEC, cursor, and LOAD-fallback allocations, Hyper retains 75
+bytes of the plain free map; Hyper Quickrun retains 43 bytes.
 
 ## Now in use — `@` directory wedge
 

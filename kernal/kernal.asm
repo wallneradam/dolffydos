@@ -52,6 +52,7 @@ FIXED_ULTIMATE_BANNER = ULTIMATE_BUILD + HYPER_BUILD
 !if HYPER_BUILD {
 HSTAT = $0334      ; UCI status bytes (aliases Jiffy scratch; paths are exclusive)
 HDIR = $0337       ; nonzero while the @ wedge reads a UCI directory channel
+HLOAD_SA = $02     ; original LOAD secondary address across device retries
 }
 !if CLOCK_ENABLE {
 CLK_BOTL   = 246
@@ -814,6 +815,11 @@ CLK_DSH    = 6
     and #$02                                 ; $e5f1 Commodore key?
     beq $e5cd                                ; $e5f3 SHIFT+RUN/STOP stays disabled
     jmp QUICKRUN_RUN                         ; $e5f5 C=+RUN/STOP quickrun
+!if HYPER_BUILD {
+HCUR_ON_TAIL:
+    eor #$80
+    jmp $ea1c
+}
     !fill $e5fe - *, $ea
 } else {
     beq $e5cd                                ; $e5ee SHIFT+RUN/STOP discarded (auto-LOAD removed)
@@ -828,7 +834,14 @@ CLK_LEDSET:
     sta $d015
     rts
 } else {
+!if HYPER_BUILD {
+HCUR_ON_TAIL:
+    eor #$80
+    jmp $ea1c
+    !fill $e5fe - *, $ea
+} else {
     !fill $e, $ea   ; $e5f0-$e5fd BLANK SHIFT+RUN/STOP auto-LOAD buffer fill (removed)
+}
 }
 }
     cmp #$0d                                 ; $e5fe
@@ -1391,6 +1404,20 @@ CLK_LEDSET:
     ldy $d3                                  ; $ea40
     ldx $0287                                ; saved character colour
     jsr HCURSOR                              ; select and draw the current phase
+    jmp $ea61                                ; continue the IRQ after HCURSOR returns
+; First cursor phase: preserve the covered character and its colour, then draw
+; the normal inverse cursor. Its five-byte draw tail fits in the removed
+; SHIFT+RUN/STOP auto-LOAD buffer so the IRQ can jump over this inline body.
+HCUR_ON:
+    lda ($d1),y
+    sta $ce
+    inc $cf
+    jsr $ea24
+    lda ($f3),y
+    sta $0287
+    ldx $0286
+    lda $ce
+    jmp HCUR_ON_TAIL
     !fill $ea61 - *, $ea
 } else {
     ldy $d3                                  ; $ea40
@@ -2409,7 +2436,8 @@ HAT_OPEN_3:
     jsr HWAIT
     inc HDIR
     rts
-    !fill $f196 - *, $ea
+HLOAD_FINAL_NEAR:
+    jmp $f704
 } else {
     !fill $f196 - *, $ea
 }
@@ -2429,7 +2457,14 @@ HAT_OPEN_3:
     ldx $4c                                  ; $f1a6
     !byte $4b                                ; $682c (undefined opcode)
     !byte $fc                                ; $682d (undefined opcode)
+!if HYPER_BUILD {
+; The retry body is too far away for the branches in HLOAD_ERROR. This former
+; directory-printer thunk is a three-byte bridge into it.
+HLOAD_RESET_NEAR:
+    jmp HLOAD_RESET
+} else {
     !fill $3, $ea   ; $f1aa-$f1ac BLANK dir char-printer thunk
+}
     lda $90                                  ; $f1ad
     beq $f1b5                                ; $f1af
     lda #$0d                                 ; $f1b1
@@ -2487,7 +2522,9 @@ CLK_ENTER:
 !if QUICKRUN_BUILD {
 QUICKRUN_RUN:
     ldx #QUICKRUN_LEN
+!if HYPER_BUILD = 0 {
     sei
+}
     stx $c6
 QUICKRUN_COPY:
     lda QUICKRUN_STRING-1,x
@@ -2500,19 +2537,30 @@ QUICKRUN_LEN = 8
     ; $f1df-$f20d was the monitor filename parser.
 }
 !if HYPER_BUILD {
-; First cursor phase: preserve the covered character and its colour, then draw
-; the normal inverse cursor. HCURSOR handles the following visible phases.
-HCUR_ON:
-    lda ($d1),y
-    sta $ce
-    inc $cf
-    jsr $ea24
-    lda ($f3),y
-    sta $0287
-    ldx $0286
-    lda $ce
-    eor #$80
-    jmp $ea1c
+; All conventional LOAD error exits eventually return here through $F4A7.
+; Only FILE NOT FOUND (4) and DEVICE NOT PRESENT (5) enter the retry selector;
+; success and every other error retain the stock return unchanged. The stock
+; RTS at $F1C9 keeps this wrapper and selector inside the remaining ROM hole.
+HLOAD_STOCK_CALL:
+    jsr $f4a7
+    bcc $f1c9
+    cmp #$04
+    bcc $f1c9
+    cmp #$06
+    bcs $f1c9
+; Device 8 advances to 9; device 9 advances to the configured SoftwareIEC bus
+; ID. Errors after that use the normal final FILE NOT FOUND path.
+HLOAD_ERROR:
+    ldx $ba
+    inx
+    cpx #$09
+    beq HLOAD_STORE_DEVICE
+    cpx #$0a
+    bne HLOAD_FINAL_NEAR
+    ldx $df1b
+HLOAD_STORE_DEVICE:
+    stx $ba
+    bcs HLOAD_RESET_NEAR     ; both accepted CPX paths leave carry set
 }
     !fill $f20e - *, $ea
 }
@@ -2773,21 +2821,22 @@ HAT_PARSE:
     bne HAT_PARSE_TAIL
 HAT_PARSE_TENS:
     cmp #$31                ; leading "1"
-    bne HAT_PARSE_DONE
+    bne $f3ad
     jsr $0073
-    cmp #$30                ; "10"
-    beq HAT_PARSE_NUMBER
-    cmp #$31                ; "11"
-    bne HAT_PARSE_DONE
-HAT_PARSE_NUMBER:
-    and #$01
-    clc
-    adc #$0a
+    eor #$30                ; "0"/"1" -> 0/1
+    cmp #$02
+    bcs $f3ad
+    ora #$0a                ; 0/1 -> 10/11
     sta $ba
 HAT_PARSE_TAIL:
-    jsr $0073               ; command must end after the device number
-HAT_PARSE_DONE:
-    rts
+    jmp $0073               ; command must end after the device number
+; Restore the default secondary address destroyed by a failed IEC attempt,
+; reload the original LOAD/VERIFY mode, and run the same loader again.
+HLOAD_RESET:
+    lda HLOAD_SA
+    sta $b9
+    lda $93
+    jmp HLOAD_AGAIN
     !fill $f3ac - *, $00
 } else {
     !fill $25, $00   ; $f387-$f3ab BLANK F-key macro strings part1
@@ -3932,7 +3981,7 @@ HLOAD_EX:
     jsr HREPLY
     lda HSTAT
     beq HLOAD_OK
-    bpl HLOAD_ERROR
+    bpl HLOAD_EX_ERROR
     lda $90                 ; $80 = verify mismatch
     ora #$10
     sta $90
@@ -3943,8 +3992,8 @@ HLOAD_OK:
     sty $af
     clc
     rts
-HLOAD_ERROR:
-    jmp $f707               ; KERNAL error 5: DEVICE NOT PRESENT
+HLOAD_EX_ERROR:
+    jmp HLOAD_ERROR         ; retry the next candidate device when applicable
 }
     !fill $fa6b - *, $ea   ; pad JD detect block to the $fa6b boundary
 } else {
@@ -4784,6 +4833,9 @@ CLK_UEXIT:
 ; =============================================================================
 HLOAD:
     sta $93                 ; KERNAL LOAD mode: 0=load, nonzero=verify
+    lda $b9
+    sta HLOAD_SA            ; stock IEC rewrites $B9 before reporting an error
+HLOAD_AGAIN:
     lda $df1d
     cmp #$c9                ; UCI register interface present?
     bne HLOAD_STOCK
@@ -4817,13 +4869,11 @@ HLOAD:
     bne HLOAD_SU_ERROR
     jmp HLOAD_EX
 HLOAD_SU_ERROR:
-    cmp #$04                ; unsupported target: retain IEC fallback
-    beq HLOAD_STOCK
-    cmp #$05                ; SoftwareIEC module not active: use normal IEC
-    beq HLOAD_STOCK
-    jmp $f704               ; KERNAL error 4: FILE NOT FOUND
+    cmp #$04
+    bcs HLOAD_STOCK         ; unsupported/inactive target: retain IEC fallback
+    jmp HLOAD_ERROR         ; SoftwareIEC file error: try the next candidate
 HLOAD_STOCK:
-    jmp $f4a7               ; original handler after `sta $93`
+    jmp HLOAD_STOCK_CALL    ; collect every conventional LOAD return path
 HNAME:
     ldy #$00
     ldx $b7

@@ -228,6 +228,10 @@ plain-based and keep the complete Dolphin parallel and Jiffy serial engines.
 **Hook points.**
 - LOAD: the default RAM ILOAD vector points to `HLOAD`, which checks UCI identity
   and `device == $DF1B`, then runs LOAD_SU → LOAD_EX and returns the end address.
+  `FILE NOT FOUND` and `DEVICE NOT PRESENT` advance 8 → 9 → the configured
+  SoftwareIEC Bus ID from `$DF1B` (10 or 11), re-entering the same loader after
+  restoring its secondary address. This also lets Hyper Quickrun find a program
+  in a SoftwareIEC folder. Other errors retain the stock return unchanged.
 - SAVE: the default RAM ISAVE vector points to `HSAVE`, which performs one DMA
   SAVE command for the SoftwareIEC device.
 - Directory: `LOAD"$"` uses the DMA LOAD path. The non-destructive Hyper wedge
@@ -240,8 +244,10 @@ DATA_ACC, and waits for the acknowledgement handshake to finish. The small
 routines are split across ROM holes.
 
 **Size.** The SoftwareIEC implementation fits the plain build's fragmented
-674-byte free map without using the `$F1DF-$F20D` Quickrun hole. The later
-three-phase cursor uses 24 bytes of that region, after Quickrun where applicable.
+674-byte free map. The cursor's first phase is mostly inline in the live IRQ
+block, with its five-byte draw tail in the removed SHIFT+RUN/STOP auto-LOAD
+buffer. A 13-byte stock LOAD return filter and an 18-byte device selector share
+the former `$F1DF-$F20D` monitor-parser hole after Quickrun where applicable.
 Both Hyper variants are exactly 8192 bytes, and a static layout test verifies
 that differences from their base ROMs stay inside the declared ranges.
 
@@ -262,8 +268,8 @@ personal/experimental Ultimate variant.
    `"$"` filename, so CHKIN selected unopened channel 1 instead of OPEN's channel
    0. The corrected transition restores Y=0 before constructing CHKIN. A trace
    using the ROM's real `HAT_GET` returned the complete test directory across
-   the 32-byte first block and its refill with clean status until EOF. Retest the
-   rebuilt ROM end to end with both `@$10` and `@$11`.
+   the 32-byte first block and its refill with clean status until EOF. The rebuilt
+   ROM was then confirmed end to end, including the 10/11 device-number parser.
 3. **Remaining end-to-end matrix.** Exercise relocated LOAD, `LOAD,1`, `VERIFY`,
    SAVE, missing-file error, and empty/large files against SoftwareIEC.
 4. **Fallback behavior.** Disable Command Interface and SoftwareIEC separately
