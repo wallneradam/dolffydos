@@ -30,7 +30,7 @@ HYPER_RANGES = (
     (0xF3AE, 0xF3D4),
     (0xF409, 0xF42A),
     (0xF487, 0xF494),
-    (0xF533, 0xF554),
+    (0xF530, 0xF554),
     (0xF662, 0xF675),
     (0xF72C, 0xF735),
     (0xF775, 0xF816),
@@ -135,8 +135,31 @@ def check_pair(base_name, hyper_name):
     assert hyper[0x1193:0x1196] == bytes.fromhex("4c 04 f7"), (
         f"{hyper_name}: exhausted LOAD search does not return FILE NOT FOUND"
     )
-    assert hyper[0x1530:0x1533] == bytes.fromhex("4c 04 f7"), (
-        f"{hyper_name}: stock FILE NOT FOUND exit was unexpectedly patched"
+    assert hyper[0x1530:0x1537] == bytes.fromhex("a9 00 85 90 4c 62 f6"), (
+        f"{hyper_name}: FILE NOT FOUND does not clear status before the drain"
+    )
+    assert hyper[0x1662:0x1675] == bytes.fromhex(
+        "a9 6f 85 b9 a5 ba 20 37 f2 20 13 ee 24 90 50 f9 4c 04 f7"
+    ), (
+        f"{hyper_name}: command-channel drain does not return through error 4"
+    )
+    assert hyper[0x1487:0x1495] == bytes.fromhex(
+        "ac 37 03 f0 fa 88 a2 14 20 97 fb 4c 1a fb"
+    ), (
+        f"{hyper_name}: SoftwareIEC directory close bridge is missing"
+    )
+    assert hyper[0x1486] == 0x60, (
+        f"{hyper_name}: inactive directory close no longer reaches the sender RTS"
+    )
+    assert hyper[0x1F33:0x1F3B] == bytes.fromhex(
+        "a9 01 8d 1c df 4c 1b fc"
+    ), (
+        f"{hyper_name}: shared UCI push helper is missing"
+    )
+    assert hyper[0x1F25:0x1F33] == bytes.fromhex(
+        "a6 b7 f0 09 b1 bb 8d 1d df c8 ca d0 f7 60"
+    ), (
+        f"{hyper_name}: UCI filename copy no longer exits with X=0"
     )
     assert hyper[0x13A3:0x13AC] == bytes.fromhex(
         "a5 02 85 b9 a5 93 4c d1 fe"

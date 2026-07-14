@@ -2871,9 +2871,7 @@ HSAVE_CONT:
     lda $af
     sta $df1d
     jsr HNAME
-    lda #$01                ; PUSH_CMD; firmware owns the CPU stop/resume
-    sta $df1c
-    jsr HREPLY
+    jsr HPUSH               ; firmware owns the CPU stop/resume
     jmp HSAVE_DONE
     !fill $f3d5 - *, $ea
 } else {
@@ -3030,17 +3028,16 @@ CLK_GOFF:
     !fill $f495 - *, $ea   ; pad JS_TX block to the $f495 boundary
 } else {
 !if HYPER_BUILD {
-; Second half of the fast-directory gate. Only the actual SoftwareIEC bus ID
-; uses UCI; every other device falls back to the normal channel code.
-HAT_OPEN_ID:
-    lda $df1d
-    cmp #$c9
-    beq HAT_OPEN_ID_OK
-    sec
-    rts
-HAT_OPEN_ID_OK:
-    ldy #$00
-    jmp HAT_OPEN_ACTIVE
+; Close the UCI directory channel through the shared empty-response executor;
+; the preceding Jiffy sender's RTS handles the inactive IEC path.
+; HAT_OPEN_GATE clears HDIR before the next directory operation.
+HAT_CLOSE:
+    ldy HDIR
+    beq $f486
+    dey
+    ldx #$14
+    jsr HAT_PREFIX0
+    jmp HAT_EXEC_EMPTY
     !fill $f495 - *, $ea
 } else {
     !fill $f495 - *, $ea
@@ -3130,7 +3127,15 @@ HAT_OPEN_ID_OK:
     jsr $edef                                ; $f528
     jsr $f642                                ; $f52b
     bcc $f5a9                                ; $f52e
+!if HYPER_BUILD {
+; A present drive reported FILE NOT FOUND. Clear the stale EOI status before
+; reading its command channel so the drain below waits for the new response.
+    lda #$00                                 ; $f530
+    sta $90
+    jmp HLOAD_CLEAR
+} else {
     jmp $f704                                ; $f530
+}
 !if CLOCK_ENABLE {
 CLK_DIN:
     sei
@@ -3159,9 +3164,7 @@ CLK_MREADY:
 } else {
 !if HYPER_BUILD {
 ; Queue-byte handlers are split from HREPLY to fit the fragmented ROM holes.
-HREPLY_DATA:
-    lda $df1e
-    jmp HREPLY_LOOP
+    !fill $f539 - *, $ea
 HREPLY_STATUS:
     lda $df1f
     sta HSTAT,y
@@ -3170,12 +3173,12 @@ HREPLY_STATUS:
 ; First half of the fast-directory gate. HDIR is cleared even on fallback so
 ; the shared byte reader can safely delegate to the stock KERNAL.
 HAT_OPEN_GATE:
-    lda #$00
-    sta HDIR
+    ldy #$00
+    sty HDIR
     lda $ba
     cmp $df1b
     bne HAT_OPEN_FALLBACK
-    jmp HAT_OPEN_ID
+    jmp HAT_OPEN_ACTIVE
 HAT_OPEN_FALLBACK:
     sec
     rts
@@ -3328,18 +3331,20 @@ CLK_BOT2:
     !fill $f676 - *, $ea
 } else {
 !if HYPER_BUILD {
-; Close the UCI directory channel. HPREFIX aborts any partly consumed CHKIN
-; response before command $14 closes SoftwareIEC channel zero.
-HAT_CLOSE:
-    lda HDIR
-    beq HAT_CLOSE_DONE
-    ldy #$00
-    ldx #$14
-    jsr HAT_PREFIX0
-    jsr HAT_EXEC_EMPTY
-    sty HDIR
-HAT_CLOSE_DONE:
-    rts
+; Drain the current drive's command channel after FILE NOT FOUND. Entering the
+; stock CHKIN talker setup keeps Dolphin, Jiffy, and stock IEC dispatch intact.
+; The normal error-4 path then calls CLRCHN, which sends UNTALK via the input
+; device installed by $F237 before returning to the LOAD retry wrapper.
+HLOAD_CLEAR:
+    lda #$6f
+    sta $b9
+    lda $ba
+    jsr $f237
+HLOAD_CLEAR_BYTE:
+    jsr $ee13
+    bit $90
+    bvc HLOAD_CLEAR_BYTE
+    jmp $f704
     !fill $f676 - *, $ea
 } else {
     !fill $f676 - *, $ea
@@ -3976,9 +3981,7 @@ HLOAD_EX:
     sta $df1d
     lda $93
     sta $df1d
-    lda #$01                ; PUSH_CMD; firmware owns the CPU stop/resume
-    sta $df1c
-    jsr HREPLY
+    jsr HPUSH               ; firmware owns the CPU stop/resume
     lda HSTAT
     beq HLOAD_OK
     bpl HLOAD_EX_ERROR
@@ -3994,6 +3997,9 @@ HLOAD_OK:
     rts
 HLOAD_EX_ERROR:
     jmp HLOAD_ERROR         ; retry the next candidate device when applicable
+HREPLY_DATA:
+    lda $df1e
+    jmp HREPLY_LOOP
 }
     !fill $fa6b - *, $ea   ; pad JD detect block to the $fa6b boundary
 } else {
@@ -4222,8 +4228,8 @@ HSAVE_ACTIVE:
     jsr $f68f               ; standard SAVING + filename message
     ldx #$12                ; SOFTIEC_CMD_SAVE
     jsr HPREFIX
-    lda #$00                ; SAVE verify flag (KERNAL SAVE has no verify mode)
-    sta $df1d
+    ldy #$00                ; SAVE verify flag (KERNAL SAVE has no verify mode)
+    sty $df1d
     jmp HSAVE_CONT
 }
     !fill $fb8e - *, $ea   ; pad to the kept hardcopy tail
@@ -4858,13 +4864,11 @@ HLOAD_AGAIN:
     lda $c4
     sta HSTAT+2
     sta $df1d
-    lda #$00                ; firmware reserves command bytes 6-7 before name
-    sta $df1d
-    sta $df1d
+    ldy #$00                ; firmware reserves command bytes 6-7 before name
+    sty $df1d
+    sty $df1d
     jsr HNAME
-    lda #$01                ; PUSH_CMD, CPU continues during setup
-    sta $df1c
-    jsr HREPLY
+    jsr HPUSH               ; PUSH_CMD, CPU continues during setup
     lda HSTAT
     bne HLOAD_SU_ERROR
     jmp HLOAD_EX
@@ -4875,7 +4879,6 @@ HLOAD_SU_ERROR:
 HLOAD_STOCK:
     jmp HLOAD_STOCK_CALL    ; collect every conventional LOAD return path
 HNAME:
-    ldy #$00
     ldx $b7
     beq HNAME_DONE
 HNAME_LOOP:
@@ -4886,6 +4889,10 @@ HNAME_LOOP:
     bne HNAME_LOOP
 HNAME_DONE:
     rts
+HPUSH:
+    lda #$01
+    sta $df1c
+    jmp HREPLY
     !fill $ff3b - *, $ea
 } else {
     !byte $ea   ; $fecb

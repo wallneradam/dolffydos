@@ -102,14 +102,14 @@ occupy the remaining 31 bytes, so both features still fit together.
 | `$F227-$F234`  |    14 | OPEN completion and CHKIN setup                        |
 | `$F26C-$F278`  |    13 | OPEN command frame and directory name                  |
 | `$F387-$F3AB`  |    37 | compact `@$9` / `@$10` / `@$11` parser and retry reset |
-| `$F3AE-$F3D4`  |    39 | SAVE parameters and completion                         |
-| `$F487-$F494`  |    14 | UCI identity half of directory gate                    |
-| `$F533-$F553`  |    33 | response handlers and Bus-ID half of gate              |
-| `$F662-$F674`  |    19 | UCI directory channel close                            |
+| `$F3AE-$F3CF`  |    34 | SAVE parameters and completion                         |
+| `$F487-$F494`  |    14 | UCI directory channel close                            |
+| `$F530-$F553`  |    34 | LOAD error hook, response status, and directory gate   |
+| `$F662-$F674`  |    19 | IEC command-channel drain after `FILE NOT FOUND`       |
 | `$F72C-$F734`  |     9 | final directory-block EOI                              |
 | `$F815`        |     1 | one-byte expansion of the shared `@` wedge             |
 | `$F8AF-$F8CA`  |    28 | SAVE completion and directory chunk state              |
-| `$FA37-$FA69`  |    51 | LOAD_EX command and result                             |
+| `$FA37-$FA6A`  |    52 | LOAD_EX command, result, and response-data handler     |
 | `$FAF7-$FB0F`  |    25 | directory chunk refill and empty-block handling        |
 | `$FB1A-$FB2C`  |    19 | empty-response command and DATA_ACC helper             |
 | `$FB61-$FB88`  |    40 | SAVE entry and fallback gate                           |
@@ -130,8 +130,8 @@ Ultimate-only Hyper banner static. The cursor uses `$CF=0/1/$80` for original,
 inverse, and inverse-up-arrow states; no additional RAM is reserved. The fixed
 banner consumes the four-byte plain startup slack at `$E42C-$E42F`.
 
-After the SoftwareIEC, cursor, and LOAD-fallback allocations, Hyper retains 75
-bytes of the plain free map; Hyper Quickrun retains 43 bytes.
+After the SoftwareIEC, cursor, LOAD-fallback, and drive-status allocations,
+Hyper retains 78 bytes of the plain free map; Hyper Quickrun retains 46 bytes.
 
 ## Now in use — `@` directory wedge
 

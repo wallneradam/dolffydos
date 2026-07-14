@@ -231,7 +231,10 @@ plain-based and keep the complete Dolphin parallel and Jiffy serial engines.
   `FILE NOT FOUND` and `DEVICE NOT PRESENT` advance 8 → 9 → the configured
   SoftwareIEC Bus ID from `$DF1B` (10 or 11), re-entering the same loader after
   restoring its secondary address. This also lets Hyper Quickrun find a program
-  in a SoftwareIEC folder. Other errors retain the stock return unchanged.
+  in a SoftwareIEC folder. Before advancing after `FILE NOT FOUND`, the current
+  IEC drive's command channel is read to EOI, clearing its error LED. `DEVICE
+  NOT PRESENT` advances without contacting that device again. Other errors
+  retain the stock return unchanged.
 - SAVE: the default RAM ISAVE vector points to `HSAVE`, which performs one DMA
   SAVE command for the SoftwareIEC device.
 - Directory: `LOAD"$"` uses the DMA LOAD path. The non-destructive Hyper wedge
