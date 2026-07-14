@@ -104,11 +104,13 @@ class Vice:
       cable       "0" none / "1" standard parallel cable (DolphinDOS) / "2" DD3
       drive_rom   path to a -dos1541 ROM, or None to use VICE's bundled stock 1541
       drive_ram   True -> add the DolphinDOS drive RAM expansion ($2000/$4000/$6000)
+      extra_args  additional VICE arguments, used by multi-drive route tests
     """
     _next_port = 6700
 
     def __init__(self, disk, kernal=None, drive_rom=None, cable="0",
-                 drive_ram=False, userport_cable=False, port=None, video="pal"):
+                 drive_ram=False, userport_cable=False, port=None, video="pal",
+                 extra_args=None):
         self.disk = disk
         self.port = port or Vice._alloc_port()
         kernal = kernal or DOLFFY_ROM
@@ -130,6 +132,8 @@ class Vice:
             args += ["-userportdevice", "21"]
         if drive_ram:
             args += ["-drive8ram2000", "-drive8ram4000", "-drive8ram6000"]
+        if extra_args:
+            args += extra_args
         args += ["-8", disk, "-warp",
                  "-binarymonitor", "-binarymonitoraddress", f"ip4://127.0.0.1:{self.port}"]
         self.args = args

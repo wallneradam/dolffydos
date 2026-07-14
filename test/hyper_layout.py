@@ -123,15 +123,22 @@ def check_pair(base_name, hyper_name):
             f"{hyper_name}: stock LOAD success/error pass-through misses its RTS"
         )
     retry = wrapper + 13
-    assert hyper[retry:retry + 10] == bytes.fromhex(
-        "a6 ba e8 e0 09 f0 07 e0 0a d0"
-    ), f"{hyper_name}: LOAD error device-selection gate is missing"
-    assert hyper[retry + 11:retry + 16] == bytes.fromhex("ae 1b df 86 ba")
-    final_displacement = int.from_bytes(hyper[retry + 10:retry + 11], signed=True)
-    assert ORIGIN + retry + 11 + final_displacement == 0xF193
-    assert hyper[retry + 16] == 0xB0
-    reset_displacement = int.from_bytes(hyper[retry + 17:retry + 18], signed=True)
-    assert ORIGIN + retry + 18 + reset_displacement == 0xF1AA
+    assert hyper[retry:retry + 6] == bytes.fromhex("a6 ba e8 e0 0c b0"), (
+        f"{hyper_name}: LOAD retry does not stop after device 11"
+    )
+    assert hyper[retry + 7:retry + 10] == bytes.fromhex("e0 09 90"), (
+        f"{hyper_name}: LOAD retry does not reject devices below 8"
+    )
+    assert hyper[retry + 11:retry + 14] == bytes.fromhex("86 ba b0"), (
+        f"{hyper_name}: LOAD retry does not store the next device"
+    )
+    for branch in (retry + 5, retry + 9):
+        displacement = int.from_bytes(hyper[branch + 1:branch + 2], signed=True)
+        assert ORIGIN + branch + 2 + displacement == 0xF193, (
+            f"{hyper_name}: exhausted LOAD search misses final FILE NOT FOUND"
+        )
+    reset_displacement = int.from_bytes(hyper[retry + 14:retry + 15], signed=True)
+    assert ORIGIN + retry + 15 + reset_displacement == 0xF1AA
     assert hyper[0x1193:0x1196] == bytes.fromhex("4c 04 f7"), (
         f"{hyper_name}: exhausted LOAD search does not return FILE NOT FOUND"
     )

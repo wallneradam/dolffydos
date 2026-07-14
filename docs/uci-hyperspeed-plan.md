@@ -1,16 +1,19 @@
 # Dolffy DOS — UCI "Hyperspeed" variant (Ultimate DMA LOAD/SAVE)
 
-Feasibility + design notes for a **new build variant** that adds Ultimate-only,
-DMA-based fast LOAD/SAVE ("hyperspeed") on top of the plain Dolffy kernal.
-Clean-room from the public Ultimate documentation — this is the same mechanism
-the official (closed) Hyperspeed kernal is built on, so no proprietary ROM is
-copied.
+Design and implementation notes for the Ultimate-only, DMA-based fast LOAD/SAVE
+("hyperspeed") in Dolffy's Hyper ROMs. The implementation is clean-room from the
+public Ultimate documentation and official firmware source; no proprietary ROM
+is copied.
 
 > Status: **implemented on 2026-07-14** as `dolffy-hyper.rom` and
-> `dolffy-hyper-quickrun.rom`. The UCI DMA LOAD path has loaded a directory and a
-> game successfully on a real C64 Ultimate. A hardware trace has validated the
-> corrected direct-directory OPEN/CHKIN handshake; the rebuilt `@$10` / `@$11`
-> ROM path and the remaining SAVE/VERIFY matrix still require end-to-end validation.
+> `dolffy-hyper-quickrun.rom`. UCI LOAD, automatic 8 -> 9 -> 10 -> 11 search,
+> and direct `@$11` directory streaming have been verified end to end on a real
+> C64 Ultimate. The remaining SAVE/VERIFY matrix still requires end-to-end
+> validation.
+
+For ROM selection, practical setup, normal BASIC commands, trade-offs, and the
+three-phase SHIFT/SHIFT LOCK cursor, see the
+[root README](../README.md#which-rom-should-i-use).
 
 ---
 
@@ -19,8 +22,9 @@ copied.
 Point the Ultimate's **Software IEC** drive at a host folder, and make the
 standard KERNAL LOAD/SAVE routines fetch/store files from it via a **DMA
 transfer straight into C64 RAM** instead of clocking bytes over the IEC bus.
-Near-instant loading (200+ blocks/s), transparent to BASIC and to any program
-that goes through the KERNAL.
+The disk mechanism and serial byte transfer disappear from that route, making
+ordinary files feel effectively immediate while remaining transparent to BASIC
+and programs that go through the KERNAL.
 
 This is an **Ultimate-only** accelerator delivered in two plain-based variants:
 Hyper and Hyper Quickrun. The separate border-clock build remains unchanged.
@@ -43,6 +47,10 @@ Limitation (inherent, same as the official Hyperspeed): only **standard KERNAL
 LOAD/SAVE** is accelerated. Programs that carry their own turbo/custom loader
 (bit-banging the bus, bypassing the KERNAL) do not use — and cannot use — the
 DMA path; they keep running on the real drive / Dolphin / Jiffy path.
+
+The Command Interface is required only for the DMA shortcut. If it is disabled,
+SoftwareIEC remains a normal IEC drive: explicit and automatic LOAD/SAVE plus
+`@$10` / `@$11` still work through the conventional, slower KERNAL path.
 
 ---
 
@@ -177,7 +185,7 @@ Every drive on an Ultimate has its own device number, and they live on the bus
 side by side:
 
 - emulated 1541 (Drive A, a mounted D64) → e.g. device 8
-- Software IEC (a host folder) → e.g. device 9
+- Software IEC (a host folder) → preferably device 10 or 11
 - a physical 1541 → yet another number
 
 Config: F2 → *1541 Drive A settings* → *1541 Drive Bus ID*; the Software IEC
@@ -190,11 +198,12 @@ device == SoftwareIEC-BusID ($DF1B)  ->  UCI DMA hyperspeed (§5)
 otherwise                            ->  existing path: Dolphin-parallel / Jiffy-serial / stock
 ```
 
-So a user can run device 8 = real Dolphin 1541 (parallel) **and** device 9 =
-Software IEC folder (DMA hyperspeed) at the same time, each at its own top
-speed. D64-image / true-1541-emulation titles stay on their own device number,
-untouched. **Config caveat:** the Software IEC device# must not collide with the
-emulated/real 1541's device# (don't leave both on 8).
+So a user can run device 8 = real Dolphin 1541 (parallel), device 9 = another
+emulated or physical drive, **and** device 11 = Software IEC folder (DMA
+hyperspeed) at the same time, each at its own top speed. D64-image /
+true-1541-emulation titles stay on their own device number, untouched. **Config
+caveat:** the Software IEC device number must not collide with an emulated or
+physical drive.
 
 ---
 
@@ -204,8 +213,8 @@ LOAD/SAVE needs no new syntax. Hyperspeed hooks the **standard KERNAL LOAD/SAVE 
 (`$FFD5` / `$FFD8`, and the `$0330`/`$0332` LOAD/SAVE RAM vectors):
 
 - **BASIC:** `LOAD"FILE",10` · `LOAD"FILE",10,1` · `SAVE"FILE",10` ·
-  `LOAD"$",10` — ordinary commands, just instant when 10 is the configured
-  SoftwareIEC Bus ID.
+  `LOAD"$",10` — ordinary commands using the direct-memory route when 10 is the
+  configured SoftwareIEC Bus ID.
 - **Any program** that calls KERNAL LOAD (`JSR $FFD5`) or goes through the load
   vector gets the DMA speed for free, unmodified.
 - **Self-loading turbo code** that bypasses the KERNAL does *not* hit this path
@@ -213,9 +222,10 @@ LOAD/SAVE needs no new syntax. Hyperspeed hooks the **standard KERNAL LOAD/SAVE 
   limitation.
 
 The non-destructive wedge adds `@$10` and `@$11` in Hyper builds. When the typed
-number matches the SoftwareIEC Bus ID, it uses direct UCI OPEN/CHKIN/CLOSE and
-streams the chunked directory response to the existing formatter. `@$`, `@$9`,
-and a non-matching 10/11 keep the normal IEC route.
+number matches the SoftwareIEC Bus ID and UCI is available, it uses direct UCI
+OPEN/CHKIN/CLOSE and streams the chunked directory response to the existing
+formatter. `@$`, `@$9`, a non-matching 10/11, or disabled UCI keep the normal
+IEC route.
 
 ---
 
@@ -228,13 +238,14 @@ plain-based and keep the complete Dolphin parallel and Jiffy serial engines.
 **Hook points.**
 - LOAD: the default RAM ILOAD vector points to `HLOAD`, which checks UCI identity
   and `device == $DF1B`, then runs LOAD_SU → LOAD_EX and returns the end address.
-  `FILE NOT FOUND` and `DEVICE NOT PRESENT` advance 8 → 9 → the configured
-  SoftwareIEC Bus ID from `$DF1B` (10 or 11), re-entering the same loader after
-  restoring its secondary address. This also lets Hyper Quickrun find a program
-  in a SoftwareIEC folder. Before advancing after `FILE NOT FOUND`, the current
-  IEC drive's command channel is read to EOI, clearing its error LED. `DEVICE
-  NOT PRESENT` advances without contacting that device again. Other errors
-  retain the stock return unchanged.
+  `FILE NOT FOUND` and `DEVICE NOT PRESENT` advance 8 → 9 → 10 → 11,
+  re-entering the same loader after restoring its secondary address. The active
+  SoftwareIEC number automatically takes the UCI path when available; otherwise
+  10 and 11 remain conventional IEC attempts. This also lets Hyper Quickrun find
+  a program in a SoftwareIEC folder with Command Interface disabled. Before
+  advancing after `FILE NOT FOUND`, the current IEC drive's command channel is
+  read to EOI, clearing its error LED. `DEVICE NOT PRESENT` advances without
+  contacting that device again. Other errors retain the stock return unchanged.
 - SAVE: the default RAM ISAVE vector points to `HSAVE`, which performs one DMA
   SAVE command for the SoftwareIEC device.
 - Directory: `LOAD"$"` uses the DMA LOAD path. The non-destructive Hyper wedge
@@ -269,10 +280,12 @@ personal/experimental Ultimate variant.
    immediately without output. Hardware traces found two protocol bugs. `HWAIT`
    ignored `CMD_BUSY` bit 0, and `HNAME` left Y=1 after appending the one-byte
    `"$"` filename, so CHKIN selected unopened channel 1 instead of OPEN's channel
-   0. The corrected transition restores Y=0 before constructing CHKIN. A trace
-   using the ROM's real `HAT_GET` returned the complete test directory across
-   the 32-byte first block and its refill with clean status until EOF. The rebuilt
-   ROM was then confirmed end to end, including the 10/11 device-number parser.
+   0. The corrected transition restores Y=0 before constructing CHKIN. Later ROM
+   packing exposed another hidden contract: `HAT_OPEN_2` clears KERNAL status from
+   X, so the shared filename copier must also exit with X=0. That contract now has
+   a static regression check. The final rebuilt ROM listed the real SoftwareIEC
+   folder on bus ID 11 end to end, including multi-block refill and the 10/11
+   device-number parser.
 3. **Remaining end-to-end matrix.** Exercise relocated LOAD, `LOAD,1`, `VERIFY`,
    SAVE, missing-file error, and empty/large files against SoftwareIEC.
 4. **Fallback behavior.** Disable Command Interface and SoftwareIEC separately

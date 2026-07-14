@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build Dolffy DOS ROMs and publish them as a GitHub release.
+# Build all five Dolffy DOS ROM variants and publish them as a GitHub release.
 #
 # Usage:
 #   scripts/release.sh [tag] [--draft] [--notes "text"]
@@ -71,12 +71,15 @@ fi
 PLAIN="kernal/rom/dolffy.rom"
 ULTIMATE="kernal/rom/dolffy-ultimate.rom"
 QUICKRUN="kernal/rom/dolffy-quickrun.rom"
+HYPER="kernal/rom/dolffy-hyper.rom"
+HYPER_QUICKRUN="kernal/rom/dolffy-hyper-quickrun.rom"
+ROMS=("$PLAIN" "$QUICKRUN" "$HYPER" "$HYPER_QUICKRUN" "$ULTIMATE")
 
 echo "==> Building ROMs (clean)"
 make -C kernal clean
 make -C kernal all
 
-for f in "$PLAIN" "$ULTIMATE" "$QUICKRUN"; do
+for f in "${ROMS[@]}"; do
   if [ ! -f "$f" ]; then
     echo "error: expected build output missing: $f" >&2
     exit 1
@@ -94,19 +97,22 @@ if [ -z "$NOTES" ]; then
 
 - \`dolffy.rom\` — Plain build (conservative, runs anywhere a C64 KERNAL runs)
 - \`dolffy-quickrun.rom\` — Quickrun build (Plain plus C=+RUN/STOP: \`LOa\`, then \`SYS\`)
+- \`dolffy-hyper.rom\` — Hyper build (Plain plus Ultimate SoftwareIEC DMA and the three-phase SHIFT/SHIFT LOCK cursor)
+- \`dolffy-hyper-quickrun.rom\` — Hyper Quickrun build (Hyper plus C=+RUN/STOP Quickrun)
 - \`dolffy-ultimate.rom\` — Ultimate build (adds a real-time clock and a SHIFT LOCK indicator)
 
-All three are raw, headerless 8192-byte images. See the README for installation and the
-drive-side ROM requirements (DolphinDOS 1541 ROM for the parallel path, a licensed
-JiffyDOS drive ROM for the serial fast path)."
+All five are raw, headerless 8192-byte images. See the README for ROM selection,
+Hyper/SoftwareIEC setup, installation, and the drive-side ROM requirements
+(DolphinDOS 1541 ROM for the parallel path, a licensed JiffyDOS drive ROM for the
+serial fast path)."
 fi
 
 if gh release view "$TAG" >/dev/null 2>&1; then
   echo "==> Release $TAG exists — updating assets (clobber)"
-  gh release upload "$TAG" "$PLAIN" "$QUICKRUN" "$ULTIMATE" --clobber
+  gh release upload "$TAG" "${ROMS[@]}" --clobber
 else
   echo "==> Creating release $TAG"
-  gh release create "$TAG" "$PLAIN" "$QUICKRUN" "$ULTIMATE" \
+  gh release create "$TAG" "${ROMS[@]}" \
     --title "Dolffy DOS $TAG" \
     --notes "$NOTES" \
     $DRAFT

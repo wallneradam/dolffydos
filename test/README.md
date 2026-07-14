@@ -72,6 +72,14 @@ new `@$10` / `@$11` syntax, and fall back cleanly to IEC when UCI is absent:
 python3 test/hyper_at_dir.py
 ```
 
+The LOAD-fallback test models an empty drive 8, missing devices 9 and 10, and a
+stock IEC disk only on device 11. It issues the parameter-less `LOAD` command
+and verifies that both Hyper ROMs reach device 11 without UCI:
+
+```sh
+python3 test/hyper_load_fallback.py
+```
+
 The cursor runtime probe checks the five relevant phases in both Hyper ROMs:
 inverse character, inverse SHIFT arrow, safe restoration, and the normal
 two-phase cursor with SHIFT off.
@@ -111,6 +119,7 @@ bus ID, `$C100` the IDENTIFY response, and `$C180` its status (expected `$00`).
 | `harness.py`             | VICE monitor, RAM, keyboard, and disk-image helpers     |
 | `regress.py`             | regression matrix runner                                |
 | `hyper_at_dir.py`        | Hyper `@` parser and non-UCI IEC fallback smoke test    |
+| `hyper_load_fallback.py` | UCI-independent device-less LOAD through devices 8–11   |
 | `hyper_cursor.py`        | Hyper three-phase SHIFT cursor runtime test             |
 | `hyper_cursor_probe.asm` | machine-code probe used by `hyper_cursor.py`            |
 | `hyper_layout.py`        | ROM size, legacy hash, vector, and reserved-hole checks |

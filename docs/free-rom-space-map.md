@@ -87,8 +87,8 @@ The plain free map above remains the allocation source for future common code.
 `dolffy-hyper.rom` and `dolffy-hyper-quickrun.rom` additionally use the following
 parts for SoftwareIEC DMA LOAD/SAVE, automatic LOAD fallback, and direct
 `@$10` / `@$11` directory streaming. Hyper Quickrun places its own 16-byte
-shortcut first in `$F1DF-$F20D`; the LOAD return filter and retry selector
-occupy the remaining 31 bytes, so both features still fit together.
+shortcut first in `$F1DF-$F20D`; the LOAD return filter and 8 → 9 → 10 → 11
+retry selector use another 28 bytes, leaving three bytes free in the hole.
 
 | Range          | Bytes | Hyper use                                              |
 | -------------- | ----: | ------------------------------------------------------ |
@@ -97,8 +97,8 @@ occupy the remaining 31 bytes, so both features still fit together.
 | `$F075-$F08D`  |    25 | UCI directory byte source                              |
 | `$F187-$F195`  |    15 | CHKIN launch plus final LOAD-error bridge              |
 | `$F1AA-$F1AC`  |     3 | LOAD retry bridge                                      |
-| `$F1DF-$F1FD`  |    31 | stock LOAD return filter and selector (Hyper)          |
-| `$F1EF-$F20D`  |    31 | stock LOAD return filter and selector (Hyper Quickrun) |
+| `$F1DF-$F1FA`  |    28 | stock LOAD return filter and selector (Hyper)          |
+| `$F1EF-$F20A`  |    28 | stock LOAD return filter and selector (Hyper Quickrun) |
 | `$F227-$F234`  |    14 | OPEN completion and CHKIN setup                        |
 | `$F26C-$F278`  |    13 | OPEN command frame and directory name                  |
 | `$F387-$F3AB`  |    37 | compact `@$9` / `@$10` / `@$11` parser and retry reset |
@@ -131,7 +131,7 @@ inverse, and inverse-up-arrow states; no additional RAM is reserved. The fixed
 banner consumes the four-byte plain startup slack at `$E42C-$E42F`.
 
 After the SoftwareIEC, cursor, LOAD-fallback, and drive-status allocations,
-Hyper retains 78 bytes of the plain free map; Hyper Quickrun retains 46 bytes.
+Hyper retains 81 bytes of the plain free map; Hyper Quickrun retains 49 bytes.
 
 ## Now in use — `@` directory wedge
 

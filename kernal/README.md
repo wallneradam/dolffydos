@@ -4,7 +4,7 @@
 combine:
 
 - **DolphinDOS** parallel disk speed on the cabled drive (drive 8),
-- the **JiffyDOS** serial fast protocol on the other drive(s) (drive 9; and as a
+- the **JiffyDOS** serial fast protocol on any compatible drive (including as a
   fallback for drive 8 when no parallel cable is present) — per-device autodetect
   (parallel > JiffyDOS-serial > stock serial),
 - optional **Ultimate** add-ons: SoftwareIEC DMA LOAD/SAVE and a three-phase
@@ -16,6 +16,17 @@ This directory holds the editable ACME assembler source. It is built on a
 reverse-engineered **DolphinDOS 2** disassembly, mechanically relabeled to the true
 `$E000` runtime origin; the JiffyDOS side is being reimplemented clean-room from
 protocol documentation (see *Provenance and licensing*).
+
+| Output ROM                    | Base support              | Variant-specific addition                  |
+| ----------------------------- | ------------------------- | ------------------------------------------ |
+| `dolffy.rom`                  | Dolphin + Jiffy + stock   | Portable plain build                       |
+| `dolffy-quickrun.rom`         | Dolphin + Jiffy + stock   | C=+RUN/STOP Quickrun                       |
+| `dolffy-hyper.rom`            | Dolphin + Jiffy + stock   | SoftwareIEC DMA + three-phase SHIFT cursor |
+| `dolffy-hyper-quickrun.rom`   | Dolphin + Jiffy + stock   | Hyper plus Quickrun                        |
+| `dolffy-ultimate.rom`         | Dolphin + Jiffy + stock   | RTC clock + border SHIFT indicator         |
+
+The user-facing comparison, Hyper explanation, limitations, and exact Ultimate
+settings are in the [root README](../README.md#which-rom-should-i-use).
 
 ## Build
 

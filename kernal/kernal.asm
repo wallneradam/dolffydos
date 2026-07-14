@@ -2548,19 +2548,18 @@ HLOAD_STOCK_CALL:
     bcc $f1c9
     cmp #$06
     bcs $f1c9
-; Device 8 advances to 9; device 9 advances to the configured SoftwareIEC bus
-; ID. Errors after that use the normal final FILE NOT FOUND path.
+; Try every supported disk device in order: 8 -> 9 -> 10 -> 11. On the active
+; SoftwareIEC number HLOAD uses UCI DMA when available; without UCI the same
+; number remains usable through the conventional IEC path.
 HLOAD_ERROR:
     ldx $ba
     inx
+    cpx #$0c
+    bcs HLOAD_FINAL_NEAR
     cpx #$09
-    beq HLOAD_STORE_DEVICE
-    cpx #$0a
-    bne HLOAD_FINAL_NEAR
-    ldx $df1b
-HLOAD_STORE_DEVICE:
+    bcc HLOAD_FINAL_NEAR
     stx $ba
-    bcs HLOAD_RESET_NEAR     ; both accepted CPX paths leave carry set
+    bcs HLOAD_RESET_NEAR     ; accepted CPX #$09 leaves carry set; STX keeps it
 }
     !fill $f20e - *, $ea
 }

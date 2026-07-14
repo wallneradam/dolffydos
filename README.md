@@ -27,10 +27,10 @@ minute and a half.
 So Dolffy DOS drops the parts that no longer earn their keep and spends every
 reclaimed byte on speed instead, getting the fastest protocol each of your drives
 can manage out of the system — the full DolphinDOS parallel loader and a
-clean-room JiffyDOS serial loader. On the Ultimate it also tackles the single
-biggest day-to-day annoyance, the SHIFT LOCK key, with a clear on-screen
-indicator — and since the machine already has a real-time clock, it puts a clock
-on screen too, simply because it is nice.
+clean-room JiffyDOS serial loader. The Ultimate-specific variants go further in
+two different directions: Hyper adds direct SoftwareIEC folder speed and an
+ingenious three-phase SHIFT/SHIFT LOCK cursor, while the separate Ultimate build
+adds the real-time clock and its border indicator.
 
 Dolffy DOS (**Dolph**in + Ji**ffy**) is a drop-in replacement for the C64 KERNAL
 ROM. It stays highly compatible with stock software — as compatible as DolphinDOS
@@ -116,79 +116,161 @@ serial; here it stays fast. (The parallel path is unchanged from DolphinDOS —
 exactly as fast — and the serial path is a few seconds behind original JiffyDOS,
 not quite as optimized.)
 
-## Five builds
+## Which ROM should I use?
 
-Every release ships **five** ROM images. They share the same Dolphin/Jiffy
-fast-disk core; the differences are the quickrun shortcut and the two independent
-Ultimate-specific directions.
+Dolffy now builds **five** ROM images. All five include DolphinDOS parallel,
+JiffyDOS-compatible serial, stock serial fallback, and the non-destructive `@$`
+directory command. The variants only change the convenience and Ultimate-specific
+extras around that common disk core.
 
-| Build              | File                           | What you get |
-| ------------------ | ------------------------------ | ------------ |
-| **Plain**          | `dolffy.rom`                   | The conservative, stable base. Full Dolphin + JiffyDOS fast disk, the non-destructive directory wedge, and nothing that draws on the screen. Runs anywhere a C64 KERNAL runs. |
-| **Quickrun**       | `dolffy-quickrun.rom`          | Everything in *Plain*, **plus** C=+RUN/STOP: `LOa`, then `SYS` starts the loaded program. |
-| **Hyper**          | `dolffy-hyper.rom`             | Everything in *Plain*, **plus** Ultimate SoftwareIEC DMA LOAD/SAVE and a three-phase cursor SHIFT/SHIFT LOCK indicator. Dolphin parallel, JiffyDOS serial, and stock serial remain available per device. |
-| **Hyper Quickrun** | `dolffy-hyper-quickrun.rom`    | Everything in *Hyper*, **plus** the Quickrun shortcut. |
-| **Ultimate**       | `dolffy-ultimate.rom`          | Everything in *Plain*, **plus** a real-time clock and a SHIFT LOCK indicator. Built for the Ultimate family. |
+| Build              | File                        | Hardware        | Quickrun | SoftwareIEC DMA | SHIFT feedback        | Clock |
+| ------------------ | --------------------------- | --------------- | -------- | --------------- | --------------------- | ----- |
+| **Plain**          | `dolffy.rom`                | Any C64 or VICE | No       | No              | No                    | No    |
+| **Quickrun**       | `dolffy-quickrun.rom`       | Any C64 or VICE | Yes      | No              | No                    | No    |
+| **Hyper**          | `dolffy-hyper.rom`          | Ultimate family | No       | Yes             | Three-phase cursor    | No    |
+| **Hyper Quickrun** | `dolffy-hyper-quickrun.rom` | Ultimate family | Yes      | Yes             | Three-phase cursor    | No    |
+| **Ultimate**       | `dolffy-ultimate.rom`       | Ultimate family | No       | No              | Border/sprite display | Yes   |
 
-> Compatibility note: the **Ultimate** build is the experimental one. It installs
-> a raster clock / SHIFT LOCK indicator and uses the Ultimate Command Interface
-> (`$DF1C-$DF1F`), so it has a wider hardware-compatibility surface than Plain.
-> If you want the safest KERNAL, or you use cartridges that depend on NMI or
-> IO1/IO2 (`$DE00` / `$DF00`), start with **Plain**.
+The short version:
 
-The **Plain** and **Quickrun** builds auto-detect an Ultimate at boot: they show the familiar
-`COMMODORE 64 BASIC V2` banner on a plain C64, and rewrite it to
+- Choose **Plain** for the safest, most portable Dolffy ROM.
+- Choose **Quickrun** if you also want C=+RUN/STOP to load and start a program.
+- Choose **Hyper** on an Ultimate when a normal folder full of programs and data
+  should behave like a very fast, writable C64 drive.
+- Choose **Hyper Quickrun** for the same folder speed plus the one-key start
+  workflow. This is the most feature-rich disk-oriented variant.
+- Choose **Ultimate** when the on-screen clock is more important than
+  SoftwareIEC DMA. The clock build and the Hyper builds are intentionally
+  separate; Hyper does **not** include the clock.
+
+> Compatibility note: **Plain** and **Quickrun** have the smallest hardware
+> compatibility surface. Hyper uses the Ultimate Command Interface during
+> SoftwareIEC operations. Ultimate adds a continuously running raster clock and
+> therefore has the widest compatibility surface. If a cartridge or demo uses
+> NMI or IO1/IO2 (`$DE00` / `$DF00`), start with Plain.
+
+The **Plain** and **Quickrun** builds auto-detect an Ultimate at boot: they show
+`COMMODORE 64 BASIC V2` on a plain C64 and rewrite the screen copy to
 `COMMODORE 64 ULTIMATE` when a Command Interface is present. The Ultimate-only
 **Hyper**, **Hyper Quickrun**, and **Ultimate** builds always show
 `COMMODORE 64 ULTIMATE`. Every build prints a `DOLFFY DOS 1.0` line.
 
-If you are not on an Ultimate, or you just want the most conservative ROM, use the
-**Plain** build. If you want the classic one-key disk start workflow, use
-**Quickrun**. On an Ultimate, use **Hyper** or **Hyper Quickrun** when SoftwareIEC
-DMA disk speed is the priority; use **Ultimate** when you want the clock and the
-SHIFT LOCK indicator.
+### What does Hyper mean?
 
-### Hyper builds
+Hyper is not a CPU turbo and it is not another drive ROM. It is a third disk
+accelerator added beside DolphinDOS and JiffyDOS. The Ultimate's **SoftwareIEC**
+drive exposes a normal host folder as a writable C64 device. Hyper recognizes
+that device and asks the Ultimate firmware to copy a file directly between the
+folder and C64 RAM instead of sending every byte over the serial IEC bus.
 
-The Hyper variants add a third fast-disk route without removing anything from
-Dolffy. For the device number reported by the Ultimate's SoftwareIEC Bus ID
-register, KERNAL `LOAD`, `VERIFY`, and `SAVE` use UCI target `$05` and transfer
-directly between the SoftwareIEC host folder and C64 RAM. All other device
-numbers continue through the existing Dolphin parallel, JiffyDOS serial, or
-stock serial dispatch.
+That gives one ROM three different fast routes at the same time:
 
-KERNAL `LOAD` also searches the available routes in order. `FILE NOT FOUND` or
-`DEVICE NOT PRESENT` on device 8 advances to device 9; the same error on device
-9 advances to the configured SoftwareIEC Bus ID (10 or 11). The first successful
-load stops the search, and an error on the SoftwareIEC device is final. This
-applies to any KERNAL LOAD starting at 8 or 9, including the device-less LOAD
-generated by Hyper Quickrun; loaders that bypass the KERNAL are unchanged.
-Before leaving a present IEC drive after `FILE NOT FOUND`, Hyper drains its
-command channel to EOI so the drive error LED stops blinking. A missing device
-is advanced immediately without another IEC transaction.
+| Device or storage                         | Route selected by Hyper                            |
+| ----------------------------------------- | -------------------------------------------------- |
+| DolphinDOS drive 8 with parallel cable    | DolphinDOS parallel LOAD/SAVE                      |
+| JiffyDOS-capable drive                    | JiffyDOS-compatible serial LOAD/SAVE               |
+| Ultimate SoftwareIEC host folder          | UCI direct-memory LOAD/VERIFY/SAVE                 |
+| Anything else                             | Stock Commodore serial fallback                    |
 
-The Hyper cursor remains the normal two-phase original/inverse character when
-SHIFT is off. While SHIFT or SHIFT LOCK is active, it cycles through the
-original character, the inverse character, and an inverse up-arrow. The editor
-still restores the covered character before accepting input, so the indicator
-never becomes part of the BASIC line. It uses no sprite or raster border trick.
+Nothing has to be sacrificed to gain the SoftwareIEC route. A mounted D64 can
+stay on drive 8, another emulated or physical drive can stay on 9, and the host
+folder can be device 10 or 11. Each device uses the best protocol it supports.
 
-Enable both **Command Interface** and **Software IEC**, assign SoftwareIEC a bus
-ID that does not collide with an emulated or physical drive, and select a host
-folder. If the Command Interface is absent or the selected device is not the
-SoftwareIEC Bus ID, the ROM retains the normal IEC path. Custom loaders that
-bypass KERNAL LOAD/SAVE do not use DMA.
+The direct folder is especially useful for:
 
-For a fast, non-destructive SoftwareIEC directory, type `@$10` or `@$11` to
-match its configured Bus ID. The Hyper ROM sends UCI OPEN/CHKIN/CLOSE commands
-and streams the directory directly to the screen. `@$` and `@$9` keep their
-existing meanings; every spelling falls back to normal IEC when it does not
-select the active SoftwareIEC device.
+- BASIC programs saved as ordinary PRG files;
+- single-file games, tools, utilities, and development builds;
+- quickly moving files between a modern computer and the C64;
+- writable program and data storage that is easy to copy or back up on the host.
 
-The Hyper DMA path requires real Ultimate hardware; VICE does not emulate this
-UCI target. The non-UCI Dolphin/Jiffy/stock fallbacks are covered by the normal
-VICE regression matrix. A small target-identification probe is provided as
-`test/hyper_uci_probe.asm` for hardware bring-up.
+Standard `LOAD`, `VERIFY`, and `SAVE` syntax does not change. With SoftwareIEC
+configured as device 11, for example:
+
+```basic
+LOAD"PROGRAM",11
+LOAD"PROGRAM",11,1
+VERIFY"PROGRAM",11
+SAVE"PROGRAM",11
+```
+
+`LOAD` and `SAVE` of PRG or memory-image files use the direct-memory Hyper path.
+BASIC `OPEN`, `PRINT#`, `INPUT#`, relative files, and other channel-oriented data
+operations still go through the normal SoftwareIEC drive interface; they remain
+useful, but Hyper does not turn every individual channel byte into a DMA transfer.
+
+For a fast directory that does **not** overwrite the BASIC program in memory,
+type `@$10` or `@$11`, matching the configured SoftwareIEC Bus ID. With UCI
+available Hyper uses its direct directory stream; otherwise the same command
+falls back to normal IEC. `LOAD"$",11` also works, but like a normal C64
+directory load it replaces the BASIC program area.
+
+### Automatic LOAD search
+
+Hyper also makes device-less loading practical with several drive types. On
+`FILE NOT FOUND` or `DEVICE NOT PRESENT`, a KERNAL LOAD tries every supported
+disk number in order:
+
+```text
+8 -> 9 -> 10 -> 11
+```
+
+Starting at device 9 begins at the second step. The first successful load wins;
+other errors stop normally. Before leaving a present IEC drive after `FILE NOT
+FOUND`, Hyper drains its command channel so the drive error LED stops blinking.
+A missing device is skipped without a second IEC transaction. Hyper Quickrun
+uses the same search, so its one-key `LOAD` can find a program in the SoftwareIEC
+folder without an explicit device number.
+
+### Three-phase SHIFT / SHIFT LOCK cursor
+
+The C64 Ultimate's latching SHIFT LOCK has no obvious persistent hardware
+indicator. Hyper solves that inside the ordinary BASIC cursor instead of taking
+over a sprite, opening the border, or reserving a screen position.
+
+- With SHIFT off, the cursor remains the normal two-phase blink: **original
+  character -> inverse character**.
+- While either SHIFT or SHIFT LOCK is active, it becomes a three-phase cycle:
+  **original character -> inverse character -> inverse up-arrow**.
+- The up-arrow phase appears at the current cursor position, so it never covers
+  an unrelated character elsewhere on the screen.
+- Before BASIC accepts a key, the editor restores the original character under
+  the cursor. The arrow is only an indicator and can never become part of the
+  program line.
+
+The result is deliberately subtle: the editor behaves normally, but a latched
+SHIFT LOCK becomes visible as soon as the cursor blinks through its third phase.
+The indicator also reacts to a physically held SHIFT key; it reports the active
+SHIFT state, not which of the two ways activated it. Because it uses neither a
+raster IRQ nor a sprite, it has a much smaller compatibility footprint than the
+clocked Ultimate build. It is specifically a KERNAL/BASIC-editor indicator: a
+game or custom editor that replaces the normal cursor also replaces this visual
+feedback.
+
+### Hyper limitations and trade-offs
+
+- Hyper requires Ultimate-family hardware and firmware that provide both the
+  Command Interface and the SoftwareIEC UCI target **for DMA speed**. With the
+  Command Interface disabled, the ROM, cursor, directory commands, and ordinary
+  SoftwareIEC access still work; LOAD/SAVE simply use the slower IEC path. VICE
+  does not emulate the UCI target, so its DMA path cannot be used there either.
+- SoftwareIEC is a host-folder drive, not cycle-exact 1541 emulation. Programs
+  that depend on disk tracks, copy protection, exact drive timing, or a custom
+  fast loader belong on a D64/real-drive route instead.
+- Only software using the standard KERNAL LOAD/SAVE vectors receives DMA speed.
+  A program that talks to IEC directly or installs its own loader bypasses Hyper.
+- The Command Interface occupies Ultimate I/O space and can conflict with some
+  cartridges or demos that use `$DF00-$DFFF` directly.
+- SoftwareIEC must have a unique device number. A collision with Drive A, Drive
+  B, or a physical IEC device makes both devices unreliable.
+- Automatic search checks 8, 9, 10, and 11 in that order. This can add a short
+  delay when the desired file exists only on a later device, and an earlier
+  device wins if it contains a file with the same name.
+- Hyper deliberately has no clock. Choose `dolffy-ultimate.rom` for the clock,
+  or a Hyper ROM for the third disk accelerator and three-phase cursor.
+
+See [Hyper setup on the Ultimate family](#hyper-setup-on-the-ultimate-family)
+for the exact settings. The underlying command protocol and implementation are
+documented in [`docs/uci-hyperspeed-plan.md`](docs/uci-hyperspeed-plan.md).
 
 ### The Ultimate extras
 
@@ -210,10 +292,13 @@ build reads it over the Command Interface and shows a clock on screen.
 ## Download
 
 Pre-built ROM images are published on the
-[**Releases**](https://github.com/wallneradam/dolffydos/releases/latest) page. The
-links below always serve the **latest** release:
+[**Releases**](https://github.com/wallneradam/dolffydos/releases/latest) page.
+The links below always select that file from the **latest** release:
 
 - [`dolffy.rom`](https://github.com/wallneradam/dolffydos/releases/latest/download/dolffy.rom) — the **Plain** build
+- [`dolffy-quickrun.rom`](https://github.com/wallneradam/dolffydos/releases/latest/download/dolffy-quickrun.rom) — the **Quickrun** build
+- [`dolffy-hyper.rom`](https://github.com/wallneradam/dolffydos/releases/latest/download/dolffy-hyper.rom) — the **Hyper** build
+- [`dolffy-hyper-quickrun.rom`](https://github.com/wallneradam/dolffydos/releases/latest/download/dolffy-hyper-quickrun.rom) — the **Hyper Quickrun** build
 - [`dolffy-ultimate.rom`](https://github.com/wallneradam/dolffydos/releases/latest/download/dolffy-ultimate.rom) — the **Ultimate** build
 
 Each is a raw, headerless **8192-byte** image, usable directly anywhere a C64
@@ -228,7 +313,7 @@ drive ROM) as described under *Drives and ROMs*.
 
 ### Commodore 64 Ultimate (the new C64U)
 
-1. Copy your chosen Dolffy ROM (e.g. `dolffy-ultimate.rom`) onto the machine.
+1. Copy your chosen Dolffy ROM onto the machine.
 2. In the **file browser**, navigate to the Dolffy ROM, press **ENTER** on it, and
    choose **Set as Kernal ROM**.
 3. For DolphinDOS **parallel** speed on Drive A: in the file browser, press
@@ -241,6 +326,42 @@ drive ROM) as described under *Drives and ROMs*.
    indicator without the clock.
 6. Reboot.
 
+### Hyper setup on the Ultimate family
+
+The labels below are the names used by current Ultimate firmware. Their menu
+location can differ slightly between the C64 Ultimate, Ultimate 64, and
+1541 Ultimate-II+, but the setting names are the same.
+
+1. Install `dolffy-hyper.rom` or `dolffy-hyper-quickrun.rom` as the **Kernal
+   ROM**.
+2. Under **C64 and Cartridge Settings**, set **Command Interface** to
+   **Enabled**.
+3. Under **SoftIEC Drive Settings**, set **IEC Drive** to **Enabled**.
+4. Set **Soft Drive Bus ID** to a free device number. Device **11** is a good
+   default when Drive A and Drive B use 8 and 9; device 10 works equally well.
+5. Set **Default Path** to the USB, SD, or flash folder that should appear as the
+   C64 drive. Alternatively, browse to that folder and choose **Software IEC ->
+   Set dir. here**.
+6. Check the bus IDs of Drive A, Drive B, and any physical IEC drives. None may
+   use the same number as SoftwareIEC.
+7. Reboot or reselect the KERNAL ROM, then test the setup. For bus ID 11:
+
+```text
+@$11
+LOAD"PROGRAM",11
+```
+
+If `@$11` shows the folder contents, SoftwareIEC is reachable. With Command
+Interface enabled, a subsequent KERNAL `LOAD`, `VERIFY`, or `SAVE` to device 11
+uses Hyper DMA; with it disabled, the same commands remain functional through
+normal IEC and are simply slower. The SoftwareIEC folder does not need a
+DolphinDOS or JiffyDOS drive ROM; those ROMs remain relevant only to the separate
+emulated or physical drives.
+
+> Do not confuse **Soft Drive Bus ID** with **DMA Load Mimics ID**. Hyper reads
+> the SoftwareIEC device number from the former. Normally there is no reason to
+> change DMA Load Mimics ID for Dolffy.
+
 ### Ultimate 64 and 1541 Ultimate-II+
 
 1. Copy the Dolffy ROM (and your DolphinDOS 1541 drive ROM) to the USB stick.
@@ -252,7 +373,9 @@ drive ROM) as described under *Drives and ROMs*.
 4. For the **clock** (Ultimate build): set
    **Cartridge and ROM Settings -> Command Interface** to **Enabled**. Leave it
    disabled if you want to hide the clock.
-5. Reboot.
+5. For a **Hyper** build, configure Command Interface and SoftwareIEC as described
+   in [Hyper setup on the Ultimate family](#hyper-setup-on-the-ultimate-family).
+6. Reboot.
 
 > Note: cartridges that use the `$DF00-$DFFF` I/O range (Action Replay and
 > similar) conflict with the Command Interface. Disable them if you rely on the
@@ -266,6 +389,11 @@ ROM, the **Standard** parallel cable, the userport parallel drive cable, and the
 drive RAM expansions enabled. The exact VICE switches for the parallel path are
 documented in [`kernal/README.md`](kernal/README.md) and in the upstream
 DolphinDOS 2 project.
+
+Use `dolffy.rom` or `dolffy-quickrun.rom` in VICE unless you specifically want
+to test the Hyper cursor or its normal IEC fallbacks. VICE does not emulate the
+SoftwareIEC UCI target, so selecting a Hyper ROM does not provide DMA folder
+loading there.
 
 ## Drives and ROMs
 
@@ -311,7 +439,7 @@ DolphinDOS source — see *Licensing*.
 - **Non-destructive directory wedge.** Type `@$` to list drive 8's directory, or
   `@$9` for drive 9, **without** wiping the BASIC program currently in memory.
   Hyper builds also accept `@$10` and `@$11`; the configured SoftwareIEC device
-  uses the direct UCI directory stream.
+  uses the direct UCI directory stream when available and normal IEC otherwise.
 
 ## Keyboard shortcuts
 
@@ -333,16 +461,38 @@ Coming from DolphinDOS? To make room for the fast-disk and Ultimate code, the
 F1–F8 macros, the other CTRL commands (CTRL+D, CTRL+@, CTRL+X, CTRL+&, CTRL+V,
 CTRL+\*, CTRL+DEL, C=+DEL) and SPACE+RESTORE were removed. The directory listing
 lives on as the `@$` / `@$9` command instead (plus `@$10` / `@$11` in Hyper;
-see above). C=+RUN/STOP is restored only in the separate Quickrun build; Plain
-and Ultimate keep it disabled.
+see above). C=+RUN/STOP is restored only in Quickrun and Hyper Quickrun; Plain,
+Hyper, and Ultimate keep it disabled.
 
 ## Troubleshooting
 
+### `@$10` or `@$11` returns only `READY.`
+
+First check that the number in the command exactly matches **Soft Drive Bus ID**.
+Then verify the SoftwareIEC settings:
+
+- a Hyper ROM is selected as the active KERNAL;
+- **IEC Drive** is enabled under **SoftIEC Drive Settings**;
+- **Default Path** points to an accessible folder.
+
+**Command Interface** is required for Hyper DMA speed, but not for slow,
+conventional IEC directory and file access.
+
+Also make sure no emulated or physical drive uses the same bus ID. After replacing
+a ROM file under the same filename, reselect the KERNAL ROM or temporarily select
+another one before switching back; this forces the Ultimate to reload the image.
+
+The plain `@$` command always means device 8, and `@$9` always means device 9.
+On an enabled drive with no mounted disk, the non-destructive wedge can simply
+return to `READY.` without printing a command-channel error. That is different
+from a correctly configured `@$10` / `@$11` SoftwareIEC folder, which should show
+its directory.
+
 ### A cartridge freezes before its own loader starts
 
-Try the **Plain** build first. The Ultimate build's clock and SHIFT LOCK
-indicator use a raster IRQ and the Ultimate Command Interface, while some
-cartridges use NMI or IO1/IO2 during their own boot process.
+Try the **Plain** build first. Hyper uses the Ultimate Command Interface during
+SoftwareIEC operations, while the Ultimate build additionally installs a raster
+clock. Some cartridges use NMI or IO1/IO2 during their own boot process.
 
 If a cartridge stops before its own loader or menu appears, switch back to
 `dolffy.rom` and disable Command Interface for that setup.
